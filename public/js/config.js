@@ -9,5 +9,5 @@
 // Leave empty ('') to auto-detect (works when frontend+server are on same host)
 // ============================================================
 
-export const SERVER_URL = '';
+export const SERVER_URL = 'https://race-management-i09o.onrender.com';
 // Example: export const SERVER_URL = 'wss://ultimate-drift-xxx.onrender.com';
