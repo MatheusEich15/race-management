@@ -21,6 +21,7 @@ export class NetworkManager {
         this.onGameStarting = null;  // (config)
         this.onGameState = null;     // (carStates)
         this.onRaceWinner = null;    // (slot, name)
+        this.onRaceEnded = null;     // ()
         this.onError = null;         // (message)
         this.onDisconnect = null;    // ()
     }
@@ -112,6 +113,10 @@ export class NetworkManager {
 
             case 'race_winner':
                 if (this.onRaceWinner) this.onRaceWinner(msg.slot, msg.name);
+                break;
+
+            case 'race_ended':
+                if (this.onRaceEnded) this.onRaceEnded();
                 break;
 
             case 'error':

@@ -121,7 +121,8 @@ wss.on('connection', (ws) => {
                     trackIdx: 0,
                     botCount: 0,
                     botDifficulty: 'medio',
-                    players: new Map()
+                    players: new Map(),
+                    finishedPlayers: new Set()
                 };
 
                 room.players.set(playerId, {
@@ -251,17 +252,8 @@ wss.on('connection', (ws) => {
                     players
                 });
 
-                // Also send to host
-                const host = room.players.get(playerId);
-                if (host && host.ws.readyState === 1) {
-                    host.ws.send(JSON.stringify({
-                        type: 'game_starting',
-                        trackIdx: room.trackIdx,
-                        botCount: room.botCount,
-                        botDifficulty: room.botDifficulty,
-                        players
-                    }));
-                }
+                // Reset finished tracking
+                room.finishedPlayers = new Set();
 
                 console.log(`Room ${room.code}: race started!`);
                 break;
@@ -289,20 +281,35 @@ wss.on('connection', (ws) => {
                 const player = room.players.get(playerId);
                 if (!player) return;
 
+                // Track finished player
+                room.finishedPlayers.add(playerId);
+
                 broadcastToRoom(room, {
                     type: 'race_winner',
                     slot: player.slot,
                     name: player.name
                 });
 
-                // Reset room to lobby after a delay
-                setTimeout(() => {
-                    if (rooms.has(room.code)) {
-                        room.state = 'lobby';
-                    }
-                }, 10000);
+                console.log(`Room ${room.code}: ${player.name} finished! (${room.finishedPlayers.size}/${room.players.size})`);
 
-                console.log(`Room ${room.code}: ${player.name} finished!`);
+                // Check if all human players have finished
+                if (room.finishedPlayers.size >= room.players.size) {
+                    room.state = 'lobby';
+                    room.finishedPlayers = new Set();
+                    broadcastToRoom(room, { type: 'race_ended' });
+                    console.log(`Room ${room.code}: all finished, back to lobby`);
+                } else {
+                    // Fallback: reset to lobby after 30s even if not all finished
+                    clearTimeout(room._raceEndTimeout);
+                    room._raceEndTimeout = setTimeout(() => {
+                        if (rooms.has(room.code) && room.state === 'racing') {
+                            room.state = 'lobby';
+                            room.finishedPlayers = new Set();
+                            broadcastToRoom(room, { type: 'race_ended' });
+                            console.log(`Room ${room.code}: timeout, back to lobby`);
+                        }
+                    }, 30000);
+                }
                 break;
             }
         }

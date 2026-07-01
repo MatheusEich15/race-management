@@ -201,3 +201,70 @@ export function precomputeBezierPath(trackIdx) {
     }
     return segments;
 }
+
+/**
+ * Compute accurate finish lines for all tracks based on the Bézier path.
+ * Ensures finish lines are properly positioned on the track centerline,
+ * perpendicular to the direction of travel at the start grid.
+ */
+export function computeFinishLines() {
+    TRACKS.forEach((track, idx) => {
+        const segments = precomputeBezierPath(idx);
+        if (segments.length < 5) return;
+
+        // Find centroid of start positions
+        const cx = track.startPositions.reduce((s, p) => s + p.x, 0) / track.startPositions.length;
+        const cy = track.startPositions.reduce((s, p) => s + p.y, 0) / track.startPositions.length;
+
+        // Find nearest point on computed path
+        let bestDist = Infinity, bestIdx = 0;
+        for (let i = 0; i < segments.length; i++) {
+            const dx = segments[i].x - cx;
+            const dy = segments[i].y - cy;
+            const d = dx * dx + dy * dy;
+            if (d < bestDist) { bestDist = d; bestIdx = i; }
+        }
+
+        // Compute tangent at this point using neighboring segments
+        const spread = 3;
+        const prevIdx = (bestIdx - spread + segments.length) % segments.length;
+        const nextIdx = (bestIdx + spread) % segments.length;
+        const prev = segments[prevIdx];
+        const next = segments[nextIdx];
+        let tx = next.x - prev.x;
+        let ty = next.y - prev.y;
+        const tlen = Math.sqrt(tx * tx + ty * ty);
+        if (tlen < 0.001) return;
+        tx /= tlen;
+        ty /= tlen;
+
+        // Ensure tangent matches start angle direction (cars should cross going forward)
+        const startDx = Math.cos(track.startAngle);
+        const startDy = Math.sin(track.startAngle);
+        const dot = tx * startDx + ty * startDy;
+        if (dot < 0) {
+            tx = -tx;
+            ty = -ty;
+        }
+
+        // Perpendicular direction for finish line span
+        const px = -ty;
+        const py = tx;
+
+        // Center on path point, span slightly wider than track
+        const center = segments[bestIdx];
+        const halfSpan = (track.width / 2) + 15;
+
+        track.finishLine = {
+            x1: Math.round(center.x - px * halfSpan),
+            y1: Math.round(center.y - py * halfSpan),
+            x2: Math.round(center.x + px * halfSpan),
+            y2: Math.round(center.y + py * halfSpan),
+            nx: Math.round(tx * 1000) / 1000,
+            ny: Math.round(ty * 1000) / 1000
+        };
+    });
+}
+
+// Auto-compute finish lines on module load
+computeFinishLines();

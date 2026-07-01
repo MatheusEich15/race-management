@@ -228,6 +228,35 @@ export class DriftCar {
     }
 
     /**
+     * Compute continuous race progress for ranking.
+     * Returns a number where higher = further in the race.
+     * Uses laps, checkpoints, and nearest segment index on the path.
+     */
+    getRaceProgress(cachedSegments, trackIdx) {
+        const track = TRACKS[trackIdx];
+        const totalCp = track.checkpoints.length;
+
+        if (this.finished) {
+            return Infinity;
+        }
+
+        // Find nearest segment on the path
+        let bestDist = Infinity, bestSegIdx = 0;
+        for (let i = 0; i < cachedSegments.length; i++) {
+            const dx = cachedSegments[i].x - this.x;
+            const dy = cachedSegments[i].y - this.y;
+            const d = dx * dx + dy * dy;
+            if (d < bestDist) { bestDist = d; bestSegIdx = i; }
+        }
+
+        const totalSegs = cachedSegments.length;
+        // Progress = lap weight + checkpoint weight + segment position
+        return (this.currentLap - 1) * (totalCp + 1) * totalSegs
+             + this.nextCheckpoint * totalSegs
+             + bestSegIdx;
+    }
+
+    /**
      * Serialize car state for network transmission.
      */
     serialize() {

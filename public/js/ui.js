@@ -133,6 +133,24 @@ export function setRoomCode(code) {
     if (el) el.textContent = code;
 }
 
+/**
+ * Return to the lobby view after a race ends (online mode).
+ * Shows the menu with the lobby section visible and HUD hidden.
+ * Does NOT disconnect from WebSocket.
+ * @param {boolean} isHost - Whether this player is the host
+ */
+export function returnToLobby(isHost) {
+    document.getElementById('menu').style.display = 'flex';
+    document.getElementById('hud').style.visibility = 'hidden';
+    showSection('lobby');
+
+    // Show/hide host controls
+    const hostControls = document.getElementById('lobby-host-controls');
+    if (hostControls) hostControls.style.display = isHost ? 'flex' : 'none';
+    const btnStart = document.getElementById('btn-lobby-start');
+    if (btnStart) btnStart.style.display = isHost ? 'block' : 'none';
+}
+
 // ---- Track Grid Builder ----
 
 export function buildTrackGrid(onSelect) {

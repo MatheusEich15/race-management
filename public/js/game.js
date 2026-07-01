@@ -2,7 +2,7 @@
 // game.js — Main game loop, rendering, and mode orchestration
 // ============================================================
 
-import { TRACKS, PLAYER_COLORS, precomputeBezierPath } from './tracks.js';
+import { TRACKS, PLAYER_COLORS, PLAYER_NAMES, precomputeBezierPath } from './tracks.js';
 import { DriftCar } from './car.js';
 import { BotAI, BOT_CONFIGS } from './bot.js';
 import { handleAllCollisions } from './physics.js';
@@ -10,13 +10,14 @@ import { NetworkManager } from './network.js';
 import {
     showSection, showMenu, hideMenu, setFlow, getFlow,
     buildHUD, updateHUD, buildTrackGrid,
-    updateLobbyPlayers, setRoomCode, showToast
+    updateLobbyPlayers, setRoomCode, showToast, returnToLobby
 } from './ui.js';
 
 // ---- Constants ----
 const TOTAL_LAPS = 3;
 const CANVAS_W = 1400;
 const CANVAS_H = 850;
+const RACE_END_TIMEOUT = 20000; // 20s after first finisher for others
 
 // ---- DOM ----
 const canvas = document.getElementById('gameCanvas');
@@ -34,7 +35,13 @@ let state = {
     particles: [],
     skidmarks: [],
     cachedSegments: [],
-    winner: null,
+    // Race progress
+    finishOrder: [],     // [{slot, name, time, color}] — ordered by finish
+    raceStartTime: 0,    // performance.now() when countdown ends
+    raceEndTime: 0,      // deadline for remaining cars after first finishes
+    raceFullyEnded: false,
+    ranking: [],         // [{slot, name, color, lap, finished, progress}]
+    // UI
     countdown: 3,
     gameStarted: false,
     animFrameId: null,
@@ -78,6 +85,53 @@ function getLocalInput(keyMap) {
 // ---- Network ----
 const net = new NetworkManager();
 let lobbyPlayers = [];
+
+// ---- Helpers ----
+
+/**
+ * Get display name for a car (player, bot, or remote).
+ */
+function getCarName(car) {
+    if (car.isBot) {
+        return `BOT ${PLAYER_NAMES[car.slot] || car.slot + 1}`;
+    }
+    if (car.isRemote) {
+        const lp = lobbyPlayers.find(p => p.slot === car.slot);
+        return lp ? lp.name : `JOGADOR ${car.slot + 1}`;
+    }
+    // Local player
+    if (state.mode === 'online') {
+        const lp = lobbyPlayers.find(p => p.slot === car.slot);
+        return lp ? lp.name : `JOGADOR ${car.slot + 1}`;
+    }
+    return `JOGADOR ${car.slot + 1}`;
+}
+
+/**
+ * Compute live ranking of all cars based on race progress.
+ */
+function computeRanking() {
+    state.ranking = state.cars.map(car => {
+        const progress = car.getRaceProgress(state.cachedSegments, state.trackIdx);
+        return {
+            slot: car.slot,
+            name: getCarName(car),
+            color: car.color,
+            lap: Math.min(car.currentLap, TOTAL_LAPS),
+            finished: car.finished,
+            finishTime: car.finishTime,
+            progress: progress
+        };
+    });
+
+    // Sort: finished first (by time), then by progress descending
+    state.ranking.sort((a, b) => {
+        if (a.finished && b.finished) return a.finishTime - b.finishTime;
+        if (a.finished) return -1;
+        if (b.finished) return 1;
+        return b.progress - a.progress;
+    });
+}
 
 // ---- Menu Setup ----
 
@@ -271,9 +325,17 @@ function setupNetworkCallbacks() {
     };
 
     net.onRaceWinner = (slot, name) => {
-        if (!state.winner) {
-            state.winner = name;
+        // Mark remote car as finished locally
+        const car = state.cars.find(c => c.slot === slot);
+        if (car) {
+            car.finished = true;
+            if (!car.finishTime) car.finishTime = performance.now();
         }
+    };
+
+    net.onRaceEnded = () => {
+        // Server confirmed room is back to lobby
+        // Will be handled when player presses ENTER on podium
     };
 
     net.onError = (message) => {
@@ -283,7 +345,7 @@ function setupNetworkCallbacks() {
     net.onDisconnect = () => {
         if (state.running && state.mode === 'online') {
             showToast('Desconectado do servidor!');
-            returnToMenu();
+            returnToMenuScreen();
         }
     };
 }
@@ -440,7 +502,11 @@ function startOnlineGame(config) {
 function startRace() {
     state.particles = [];
     state.skidmarks = [];
-    state.winner = null;
+    state.finishOrder = [];
+    state.raceStartTime = 0;
+    state.raceEndTime = 0;
+    state.raceFullyEnded = false;
+    state.ranking = [];
     state.countdown = 3;
     state.gameStarted = false;
     state.running = true;
@@ -460,6 +526,7 @@ function startRace() {
         state.countdown--;
         if (state.countdown < 0) {
             state.gameStarted = true;
+            state.raceStartTime = performance.now();
             clearInterval(countInterval);
         }
     }, 1000);
@@ -470,7 +537,10 @@ function startRace() {
     }
 }
 
-function returnToMenu() {
+/**
+ * Return to menu (solo/local) or lobby (online).
+ */
+function returnToMenuScreen() {
     state.running = false;
     if (state.animFrameId) {
         cancelAnimationFrame(state.animFrameId);
@@ -480,10 +550,11 @@ function returnToMenu() {
     // Clear keys
     Object.keys(keys).forEach(k => keys[k] = false);
 
-    showMenu();
-
     if (state.mode === 'online') {
-        net.leaveRoom();
+        // Return to lobby — do NOT disconnect from WebSocket
+        returnToLobby(net.isHost);
+    } else {
+        showMenu();
     }
 }
 
@@ -504,52 +575,81 @@ function gameLoop() {
     };
 
     // ---- Update ----
-    if (state.gameStarted && !state.winner) {
-        // Update local cars
+    if (state.gameStarted && !state.raceFullyEnded) {
+        // Update local cars (only non-finished)
         state.localSlots.forEach((slot, i) => {
             const car = state.cars.find(c => c.slot === slot);
-            if (!car) return;
-            // In online mode, always use P1 keys for the local player
-            // In local mode, first local slot uses P1, second uses P2
+            if (!car || car.finished) return;
             const keyMap = (state.mode === 'online' || i === 0) ? P1_KEYS : P2_KEYS;
             const input = getLocalInput(keyMap);
             car.update(input, trackData, state.skidmarks, state.particles);
         });
 
-        // Update bot cars
+        // Update bot cars (only non-finished)
         state.botSlots.forEach((slot, i) => {
             const car = state.cars.find(c => c.slot === slot);
             const ai = state.botAIs[i];
-            if (!car || !ai) return;
+            if (!car || !ai || car.finished) return;
             const input = ai.computeInput(car, state.cachedSegments);
             car.update(input, trackData, state.skidmarks, state.particles);
         });
 
         // Interpolate remote cars
         state.cars.forEach(car => {
-            if (car.isRemote) car.interpolateRemote();
+            if (car.isRemote && !car.finished) car.interpolateRemote();
         });
 
         // Collisions
         handleAllCollisions(state.cars, state.particles);
 
-        // Check for winner
+        // ---- Track finish order ----
         for (const car of state.cars) {
-            if (car.finished && !state.winner) {
-                if (car.isBot) {
-                    state.winner = `BOT ${car.slot + 1}`;
-                } else if (car.isRemote) {
-                    const lp = lobbyPlayers.find(p => p.slot === car.slot);
-                    state.winner = lp ? lp.name : `JOGADOR ${car.slot + 1}`;
-                } else {
-                    state.winner = `JOGADOR ${car.slot + 1}`;
+            if (car.finished && !state.finishOrder.find(f => f.slot === car.slot)) {
+                const name = getCarName(car);
+                const raceTime = performance.now() - state.raceStartTime;
+
+                state.finishOrder.push({
+                    slot: car.slot,
+                    name: name,
+                    time: raceTime,
+                    color: car.color
+                });
+
+                // Start end timer on first finish
+                if (state.finishOrder.length === 1) {
+                    state.raceEndTime = performance.now() + RACE_END_TIMEOUT;
                 }
 
+                // Send to server for online mode (local car only)
                 if (state.mode === 'online' && car.isLocal) {
                     net.sendFinished(car.slot);
                 }
             }
         }
+
+        // ---- Check if race fully ended ----
+        if (state.finishOrder.length > 0) {
+            const allFinished = state.cars.every(c => c.finished);
+            const timeout = performance.now() > state.raceEndTime;
+
+            if (allFinished || timeout) {
+                // Add remaining cars as DNF
+                for (const car of state.cars) {
+                    if (!state.finishOrder.find(f => f.slot === car.slot)) {
+                        state.finishOrder.push({
+                            slot: car.slot,
+                            name: getCarName(car),
+                            time: null, // DNF
+                            color: car.color
+                        });
+                    }
+                }
+                state.raceFullyEnded = true;
+            }
+        }
+
+        // Compute ranking
+        computeRanking();
 
         // Update HUD
         state.cars.forEach((car, i) => updateHUD(i, car, TOTAL_LAPS));
@@ -574,6 +674,8 @@ function gameLoop() {
     // Draw cars (sorted by slot for consistent layering)
     state.cars.forEach(car => car.draw(ctx));
 
+    // ---- Overlays ----
+
     // Countdown overlay
     if (!state.gameStarted) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -592,26 +694,27 @@ function gameLoop() {
         ctx.textBaseline = 'alphabetic';
     }
 
-    // Winner overlay
-    if (state.winner) {
-        ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    // Live ranking (during active race)
+    if (state.gameStarted && !state.raceFullyEnded) {
+        drawRanking();
 
-        ctx.fillStyle = '#2ecc71';
-        ctx.font = '70px "Outfit", Impact, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('FIM DE CORRIDA!', CANVAS_W / 2, CANVAS_H / 2 - 50);
+        // Show countdown timer after first finisher
+        if (state.finishOrder.length > 0) {
+            const remaining = Math.max(0, Math.ceil((state.raceEndTime - performance.now()) / 1000));
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.font = 'bold 24px "Outfit", sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`⏱️ ${remaining}s restantes`, CANVAS_W / 2, 40);
+        }
+    }
 
-        ctx.fillStyle = '#fff';
-        ctx.font = '42px "Outfit", Impact, sans-serif';
-        ctx.fillText(`${state.winner} VENCEU!`, CANVAS_W / 2, CANVAS_H / 2 + 20);
-
-        ctx.fillStyle = '#f1c40f';
-        ctx.font = '22px "Outfit", Arial, sans-serif';
-        ctx.fillText('Pressione ENTER para voltar ao Menu', CANVAS_W / 2, CANVAS_H / 2 + 100);
+    // Podium overlay (race fully ended)
+    if (state.raceFullyEnded) {
+        drawPodium();
 
         if (keys['Enter']) {
-            returnToMenu();
+            keys['Enter'] = false; // prevent re-trigger
+            returnToMenuScreen();
         }
     }
 
@@ -619,6 +722,249 @@ function gameLoop() {
 }
 
 // ---- Rendering ----
+
+/**
+ * Helper: draw a rounded rectangle path on the canvas.
+ */
+function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+/**
+ * Draw the live ranking panel in the top-right corner.
+ */
+function drawRanking() {
+    const ranking = state.ranking;
+    if (!ranking || ranking.length === 0) return;
+
+    const panelW = 230;
+    const headerH = 32;
+    const rowH = 30;
+    const panelH = headerH + ranking.length * rowH + 10;
+    const panelX = CANVAS_W - panelW - 15;
+    const panelY = 15;
+
+    // Panel background with glassmorphism
+    ctx.fillStyle = 'rgba(10, 14, 23, 0.80)';
+    roundRect(panelX, panelY, panelW, panelH, 10);
+    ctx.fill();
+
+    // Subtle border
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
+    ctx.lineWidth = 1;
+    roundRect(panelX, panelY, panelW, panelH, 10);
+    ctx.stroke();
+
+    // Header
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 14px "Outfit", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('🏁 POSIÇÕES', panelX + 12, panelY + headerH / 2);
+
+    // Rows
+    const posColors = ['#FFD700', '#C0C0C0', '#CD7F32', '#777'];
+    const posEmojis = ['🥇', '🥈', '🥉', ' 4'];
+
+    ranking.forEach((entry, i) => {
+        const rowY = panelY + headerH + i * rowH;
+        const centerY = rowY + rowH / 2;
+
+        // Highlight row for local player
+        const isLocalPlayer = state.localSlots.includes(entry.slot);
+        if (isLocalPlayer) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
+            roundRect(panelX + 4, rowY + 2, panelW - 8, rowH - 4, 6);
+            ctx.fill();
+        }
+
+        // Position
+        ctx.fillStyle = posColors[i] || '#666';
+        ctx.font = 'bold 14px "Outfit", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.fillText(posEmojis[i] || `${i + 1}`, panelX + 10, centerY);
+
+        // Color dot
+        ctx.fillStyle = entry.color;
+        ctx.beginPath();
+        ctx.arc(panelX + 50, centerY, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Name
+        ctx.fillStyle = isLocalPlayer ? '#fff' : '#bdc3c7';
+        ctx.font = `${isLocalPlayer ? 'bold ' : ''}13px "Outfit", sans-serif`;
+        const displayName = entry.name.length > 10 ? entry.name.slice(0, 10) + '..' : entry.name;
+        ctx.fillText(displayName, panelX + 62, centerY);
+
+        // Lap or finished indicator
+        ctx.textAlign = 'right';
+        if (entry.finished) {
+            ctx.fillStyle = '#2ecc71';
+            ctx.font = 'bold 12px "Outfit", sans-serif';
+            ctx.fillText('✓ FIM', panelX + panelW - 10, centerY);
+        } else {
+            ctx.fillStyle = '#7f8c8d';
+            ctx.font = '12px "Outfit", sans-serif';
+            ctx.fillText(`V${entry.lap}/${TOTAL_LAPS}`, panelX + panelW - 10, centerY);
+        }
+        ctx.textAlign = 'left';
+    });
+
+    ctx.textBaseline = 'alphabetic';
+}
+
+/**
+ * Draw the end-of-race podium overlay.
+ */
+function drawPodium() {
+    const order = state.finishOrder;
+    if (!order || order.length === 0) return;
+
+    // Dark overlay
+    ctx.fillStyle = 'rgba(5, 8, 15, 0.92)';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+
+    // ---- Title ----
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    ctx.fillStyle = '#f1c40f';
+    ctx.font = 'bold 52px "Outfit", Impact, sans-serif';
+    ctx.fillText('🏁 FIM DE CORRIDA!', CANVAS_W / 2, 80);
+
+    // Track name subtitle
+    ctx.fillStyle = '#5a6270';
+    ctx.font = '16px "Outfit", sans-serif';
+    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${TOTAL_LAPS} voltas`, CANVAS_W / 2, 115);
+
+    // ---- Podium bars ----
+    const medals = ['🥇', '🥈', '🥉', ''];
+    const posLabels = ['1º LUGAR', '2º LUGAR', '3º LUGAR', '4º LUGAR'];
+    const barBg = [
+        'rgba(255, 215, 0, 0.12)',
+        'rgba(192, 192, 192, 0.09)',
+        'rgba(205, 127, 50, 0.08)',
+        'rgba(100, 100, 100, 0.06)'
+    ];
+    const barBorder = [
+        'rgba(255, 215, 0, 0.5)',
+        'rgba(192, 192, 192, 0.35)',
+        'rgba(205, 127, 50, 0.3)',
+        'rgba(100, 100, 100, 0.2)'
+    ];
+    const barGlow = [
+        'rgba(255, 215, 0, 0.08)',
+        'rgba(192, 192, 192, 0.05)',
+        'rgba(205, 127, 50, 0.04)',
+        'rgba(100, 100, 100, 0.02)'
+    ];
+
+    const barW = 520;
+    const barH = 80;
+    const gap = 95;
+    const startY = 155;
+
+    order.forEach((entry, i) => {
+        if (i >= 4) return;
+
+        const y = startY + i * gap;
+        const x = (CANVAS_W - barW) / 2;
+
+        // Glow effect for 1st place
+        if (i === 0) {
+            ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
+            ctx.shadowBlur = 20;
+        }
+
+        // Bar background
+        ctx.fillStyle = barBg[i];
+        roundRect(x, y, barW, barH, 14);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Bar border
+        ctx.strokeStyle = barBorder[i];
+        ctx.lineWidth = 2;
+        roundRect(x, y, barW, barH, 14);
+        ctx.stroke();
+
+        // Car color accent bar on the left
+        ctx.fillStyle = entry.color;
+        roundRect(x, y, 6, barH, 14);
+        ctx.fill();
+        ctx.fillRect(x + 3, y, 6, barH);
+
+        // Medal + Position label
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        const posColor = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#888';
+        ctx.fillStyle = posColor;
+        ctx.font = 'bold 22px "Outfit", sans-serif';
+        ctx.fillText(`${medals[i]} ${posLabels[i]}`, x + 20, y + barH / 2 - 14);
+
+        // Player name
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 20px "Outfit", sans-serif';
+        ctx.fillText(entry.name, x + 20, y + barH / 2 + 14);
+
+        // Color dot next to name
+        ctx.fillStyle = entry.color;
+        ctx.beginPath();
+        const nameWidth = ctx.measureText(entry.name).width;
+        ctx.arc(x + 28 + nameWidth + 10, y + barH / 2 + 14, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Time on the right
+        ctx.textAlign = 'right';
+        if (entry.time !== null) {
+            const totalSec = entry.time / 1000;
+            const min = Math.floor(totalSec / 60);
+            const sec = (totalSec % 60).toFixed(2);
+            const timeStr = min > 0 ? `${min}:${sec.padStart(5, '0')}` : `${sec}s`;
+
+            ctx.fillStyle = '#bdc3c7';
+            ctx.font = '18px "Outfit", sans-serif';
+            ctx.fillText(timeStr, x + barW - 20, y + barH / 2 - 10);
+
+            // Time diff from 1st
+            if (i > 0 && order[0].time !== null) {
+                const diff = ((entry.time - order[0].time) / 1000).toFixed(2);
+                ctx.fillStyle = '#e74c3c';
+                ctx.font = '14px "Outfit", sans-serif';
+                ctx.fillText(`+${diff}s`, x + barW - 20, y + barH / 2 + 14);
+            }
+        } else {
+            ctx.fillStyle = '#e74c3c';
+            ctx.font = 'bold 20px "Outfit", sans-serif';
+            ctx.fillText('DNF', x + barW - 20, y + barH / 2);
+        }
+        ctx.textAlign = 'left';
+    });
+
+    // ---- Return instruction ----
+    ctx.textAlign = 'center';
+    const returnText = state.mode === 'online'
+        ? 'Pressione ENTER para voltar à Sala'
+        : 'Pressione ENTER para voltar ao Menu';
+
+    // Pulsing animation
+    const pulse = 0.6 + Math.sin(performance.now() / 400) * 0.4;
+    ctx.fillStyle = `rgba(241, 196, 15, ${pulse})`;
+    ctx.font = '20px "Outfit", sans-serif';
+    ctx.fillText(returnText, CANVAS_W / 2, CANVAS_H - 50);
+
+    ctx.textBaseline = 'alphabetic';
+}
 
 function drawBezierTrack(lineWidth, strokeColor, isDash = false) {
     const t = TRACKS[state.trackIdx];
