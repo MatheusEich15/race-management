@@ -37,10 +37,12 @@ let state = {
     cachedSegments: [],
     // Race progress
     finishOrder: [],     // [{slot, name, time, color}] — ordered by finish
-    raceStartTime: 0,    // performance.now() when countdown ends
+    raceStartTime: 0,    // performance.now() when race actually starts
     raceEndTime: 0,      // deadline for remaining cars after first finishes
     raceFullyEnded: false,
     ranking: [],         // [{slot, name, color, lap, finished, progress}]
+    // Online sync
+    waitingForGo: false, // true while waiting for server's race_go
     // UI
     countdown: 3,
     gameStarted: false,
@@ -53,7 +55,6 @@ let state = {
 // ---- Input (Anti-Ghosting) ----
 const keys = {};
 window.addEventListener('keydown', e => {
-    // Don't prevent default for input/select elements (typing in fields)
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     keys[e.key] = true;
@@ -64,7 +65,6 @@ window.addEventListener('keyup', e => {
     keys[e.key] = false;
     keys[e.key.toLowerCase()] = false;
 });
-// Clear all keys when window loses focus
 window.addEventListener('blur', () => {
     Object.keys(keys).forEach(k => keys[k] = false);
 });
@@ -88,28 +88,21 @@ let lobbyPlayers = [];
 
 // ---- Helpers ----
 
-/**
- * Get display name for a car (player, bot, or remote).
- */
 function getCarName(car) {
     if (car.isBot) {
         return `BOT ${PLAYER_NAMES[car.slot] || car.slot + 1}`;
     }
     if (car.isRemote) {
         const lp = lobbyPlayers.find(p => p.slot === car.slot);
-        return lp ? lp.name : `JOGADOR ${car.slot + 1}`;
+        return lp ? lp.name : `PLAYER ${car.slot + 1}`;
     }
-    // Local player
     if (state.mode === 'online') {
         const lp = lobbyPlayers.find(p => p.slot === car.slot);
-        return lp ? lp.name : `JOGADOR ${car.slot + 1}`;
+        return lp ? lp.name : `PLAYER ${car.slot + 1}`;
     }
-    return `JOGADOR ${car.slot + 1}`;
+    return `PLAYER ${car.slot + 1}`;
 }
 
-/**
- * Compute live ranking of all cars based on race progress.
- */
 function computeRanking() {
     state.ranking = state.cars.map(car => {
         const progress = car.getRaceProgress(state.cachedSegments, state.trackIdx);
@@ -124,7 +117,6 @@ function computeRanking() {
         };
     });
 
-    // Sort: finished first (by time), then by progress descending
     state.ranking.sort((a, b) => {
         if (a.finished && b.finished) return a.finishTime - b.finishTime;
         if (a.finished) return -1;
@@ -133,10 +125,32 @@ function computeRanking() {
     });
 }
 
+/**
+ * Get podium center position (centroid of track control points).
+ */
+function getPodiumCenter() {
+    const t = TRACKS[state.trackIdx];
+    const cx = t.points.reduce((s, p) => s + p.x, 0) / t.points.length;
+    const cy = t.points.reduce((s, p) => s + p.y, 0) / t.points.length;
+    return { x: cx, y: cy };
+}
+
+/**
+ * Get podium positions for 1st, 2nd, 3rd place.
+ */
+function getPodiumPositions() {
+    const center = getPodiumCenter();
+    return [
+        { x: center.x, y: center.y - 30 },       // 1st (center, slightly up)
+        { x: center.x - 60, y: center.y + 20 },   // 2nd (left)
+        { x: center.x + 60, y: center.y + 20 },   // 3rd (right)
+        { x: center.x, y: center.y + 55 },         // 4th (below)
+    ];
+}
+
 // ---- Menu Setup ----
 
 function initMenus() {
-    // Main menu buttons
     document.getElementById('btn-solo').addEventListener('click', () => {
         setFlow('solo');
         showSection('solo-setup');
@@ -190,9 +204,9 @@ function initMenus() {
     // Join room
     document.getElementById('btn-join-confirm').addEventListener('click', () => {
         const code = document.getElementById('input-room-code').value.trim().toUpperCase();
-        const name = document.getElementById('input-join-name').value.trim() || 'Jogador';
+        const name = document.getElementById('input-join-name').value.trim() || 'Player';
         if (code.length !== 4) {
-            showToast('Código da sala deve ter 4 letras!');
+            showToast('Room code must be 4 letters!');
             return;
         }
         joinRoom(code, name);
@@ -218,7 +232,6 @@ function initMenus() {
         else showSection('main-menu');
     });
 
-    // Build track grid
     buildTrackGrid(selectTrack);
 
     // Lobby track selector
@@ -248,7 +261,7 @@ async function startCreateRoom() {
         if (!net.connected) await net.connect();
         net.createRoom(name);
     } catch (e) {
-        showToast('Erro ao conectar: ' + e.message);
+        showToast('Connection error: ' + e.message);
     }
 }
 
@@ -257,7 +270,7 @@ async function joinRoom(code, name) {
         if (!net.connected) await net.connect();
         net.joinRoom(code, name);
     } catch (e) {
-        showToast('Erro ao conectar: ' + e.message);
+        showToast('Connection error: ' + e.message);
     }
 }
 
@@ -268,7 +281,6 @@ function setupNetworkCallbacks() {
         updateLobbyPlayers(lobbyPlayers);
         showSection('lobby');
 
-        // Show host controls
         const hostControls = document.getElementById('lobby-host-controls');
         if (hostControls) hostControls.style.display = 'flex';
         const btnStart = document.getElementById('btn-lobby-start');
@@ -281,7 +293,6 @@ function setupNetworkCallbacks() {
         updateLobbyPlayers(lobbyPlayers);
         showSection('lobby');
 
-        // Hide host controls for non-hosts
         const hostControls = document.getElementById('lobby-host-controls');
         if (hostControls) hostControls.style.display = 'none';
         const btnStart = document.getElementById('btn-lobby-start');
@@ -291,14 +302,14 @@ function setupNetworkCallbacks() {
     net.onPlayerJoined = (name, slot) => {
         lobbyPlayers.push({ name, slot, isHost: false });
         updateLobbyPlayers(lobbyPlayers);
-        showToast(`${name} entrou na sala!`);
+        showToast(`${name} joined the room!`);
     };
 
     net.onPlayerLeft = (slot) => {
         const player = lobbyPlayers.find(p => p.slot === slot);
         lobbyPlayers = lobbyPlayers.filter(p => p.slot !== slot);
         updateLobbyPlayers(lobbyPlayers);
-        if (player) showToast(`${player.name} saiu da sala`);
+        if (player) showToast(`${player.name} left the room`);
     };
 
     net.onConfigUpdated = (config) => {
@@ -309,14 +320,22 @@ function setupNetworkCallbacks() {
     net.onGameStarting = (config) => {
         state.mode = 'online';
         setFlow('online');
-        startOnlineGame(config);
+        // Setup cars but DON'T start countdown yet — wait for race_go
+        setupOnlineGame(config);
+    };
+
+    net.onRaceGo = () => {
+        // Server says GO — start the synchronized countdown now
+        if (state.waitingForGo) {
+            state.waitingForGo = false;
+            beginCountdown();
+        }
     };
 
     net.onGameState = (carStates) => {
         if (!state.running) return;
-        // Apply remote car states
         for (const cs of carStates) {
-            if (cs.slot === net.mySlot) continue; // skip our own car
+            if (cs.slot === net.mySlot) continue;
             const car = state.cars.find(c => c.slot === cs.slot);
             if (car && car.isRemote) {
                 car.applyNetState(cs);
@@ -325,26 +344,25 @@ function setupNetworkCallbacks() {
     };
 
     net.onRaceWinner = (slot, name) => {
-        // Mark remote car as finished locally
         const car = state.cars.find(c => c.slot === slot);
         if (car) {
             car.finished = true;
+            car.isGhost = true;
             if (!car.finishTime) car.finishTime = performance.now();
         }
     };
 
     net.onRaceEnded = () => {
         // Server confirmed room is back to lobby
-        // Will be handled when player presses ENTER on podium
     };
 
     net.onError = (message) => {
-        showToast('Erro: ' + message);
+        showToast('Error: ' + message);
     };
 
     net.onDisconnect = () => {
         if (state.running && state.mode === 'online') {
-            showToast('Desconectado do servidor!');
+            showToast('Disconnected from server!');
             returnToMenuScreen();
         }
     };
@@ -355,7 +373,6 @@ function setupNetworkCallbacks() {
 function selectTrack(idx) {
     state.trackIdx = idx;
     const flow = getFlow();
-
     if (flow === 'solo') startSoloGame();
     else if (flow === 'local') startLocalGame();
 }
@@ -365,20 +382,17 @@ function startSoloGame() {
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
 
-    // Create cars: 1 player + N bots
     state.cars = [];
     state.botAIs = [];
     state.localSlots = [0];
     state.botSlots = [];
     state.remoteSlots = [];
 
-    // Player car
     const player = new DriftCar(0);
     player.isLocal = true;
     player.reset(track.startPositions[0].x, track.startPositions[0].y, track.startAngle);
     state.cars.push(player);
 
-    // Bot cars
     const botCount = Math.min(state.botCount, 3);
     const config = BOT_CONFIGS[state.botDifficulty] || BOT_CONFIGS.medio;
 
@@ -398,6 +412,7 @@ function startSoloGame() {
     }
 
     startRace();
+    beginCountdown(); // Solo: start countdown immediately
 }
 
 function startLocalGame() {
@@ -411,19 +426,16 @@ function startLocalGame() {
     state.botSlots = [];
     state.remoteSlots = [];
 
-    // Player 1
     const p1 = new DriftCar(0);
     p1.isLocal = true;
     p1.reset(track.startPositions[0].x, track.startPositions[0].y, track.startAngle);
     state.cars.push(p1);
 
-    // Player 2
     const p2 = new DriftCar(1);
     p2.isLocal = true;
     p2.reset(track.startPositions[1].x, track.startPositions[1].y, track.startAngle);
     state.cars.push(p2);
 
-    // Optional bots
     const botCount = Math.min(state.botCount, 2);
     const config = BOT_CONFIGS[state.botDifficulty] || BOT_CONFIGS.medio;
 
@@ -443,9 +455,13 @@ function startLocalGame() {
     }
 
     startRace();
+    beginCountdown(); // Local: start countdown immediately
 }
 
-function startOnlineGame(config) {
+/**
+ * Setup online game cars (called on game_starting). Does NOT start countdown.
+ */
+function setupOnlineGame(config) {
     state.trackIdx = config.trackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
@@ -456,7 +472,6 @@ function startOnlineGame(config) {
     state.botSlots = [];
     state.remoteSlots = [];
 
-    // Create all player cars
     for (const p of config.players) {
         const car = new DriftCar(p.slot);
         const pos = track.startPositions[p.slot];
@@ -470,7 +485,6 @@ function startOnlineGame(config) {
         state.cars.push(car);
     }
 
-    // Create bots (host runs them)
     if (net.isHost && config.botCount > 0) {
         const bc = BOT_CONFIGS[config.botDifficulty] || BOT_CONFIGS.medio;
         const usedSlots = config.players.map(p => p.slot);
@@ -493,12 +507,16 @@ function startOnlineGame(config) {
         }
     }
 
-    // Sort cars by slot for consistent rendering
     state.cars.sort((a, b) => a.slot - b.slot);
 
+    // Start rendering but wait for race_go before countdown
     startRace();
+    state.waitingForGo = true; // Show "WAITING..." until server sends race_go
 }
 
+/**
+ * Initialize race state and start the game loop.
+ */
 function startRace() {
     state.particles = [];
     state.skidmarks = [];
@@ -507,11 +525,10 @@ function startRace() {
     state.raceEndTime = 0;
     state.raceFullyEnded = false;
     state.ranking = [];
-    state.countdown = 3;
+    state.countdown = 4; // will be overwritten by beginCountdown
     state.gameStarted = false;
     state.running = true;
 
-    // Build HUD
     buildHUD(state.cars, {
         totalLaps: TOTAL_LAPS,
         mode: state.mode,
@@ -521,7 +538,17 @@ function startRace() {
 
     hideMenu();
 
-    // Countdown timer
+    if (!state.animFrameId) {
+        gameLoop();
+    }
+}
+
+/**
+ * Begin the 3-2-1-GO countdown. Called immediately for solo/local,
+ * or when race_go is received for online mode.
+ */
+function beginCountdown() {
+    state.countdown = 3;
     const countInterval = setInterval(() => {
         state.countdown--;
         if (state.countdown < 0) {
@@ -530,11 +557,6 @@ function startRace() {
             clearInterval(countInterval);
         }
     }, 1000);
-
-    // Start game loop if not already running
-    if (!state.animFrameId) {
-        gameLoop();
-    }
 }
 
 /**
@@ -546,12 +568,9 @@ function returnToMenuScreen() {
         cancelAnimationFrame(state.animFrameId);
         state.animFrameId = null;
     }
-
-    // Clear keys
     Object.keys(keys).forEach(k => keys[k] = false);
 
     if (state.mode === 'online') {
-        // Return to lobby — do NOT disconnect from WebSocket
         returnToLobby(net.isHost);
     } else {
         showMenu();
@@ -576,13 +595,37 @@ function gameLoop() {
 
     // ---- Update ----
     if (state.gameStarted && !state.raceFullyEnded) {
-        // Update local cars (only non-finished)
+        // Update local cars
         state.localSlots.forEach((slot, i) => {
             const car = state.cars.find(c => c.slot === slot);
-            if (!car || car.finished) return;
+            if (!car) return;
+
+            // Ghost cars can still be controlled but don't count for anything
+            if (car.finished && !car.isGhost) {
+                car.isGhost = true;
+            }
+
             const keyMap = (state.mode === 'online' || i === 0) ? P1_KEYS : P2_KEYS;
             const input = getLocalInput(keyMap);
-            car.update(input, trackData, state.skidmarks, state.particles);
+
+            if (car.isGhost) {
+                // Ghost: update position from input but no lap counting
+                car.prevX = car.x;
+                car.prevY = car.y;
+                // Simple ghost movement (reduced physics)
+                if (input.up) car.speed = Math.min(car.speed + car.accel, car.maxSpeed);
+                else if (input.down) car.speed = Math.max(car.speed - car.accel * 2, -car.maxSpeed / 2);
+                else car.speed *= (1 - car.friction);
+                if (Math.abs(car.speed) < 0.01) car.speed = 0;
+                if (input.left) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
+                if (input.right) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
+                car.vx = Math.cos(car.angle) * car.speed;
+                car.vy = Math.sin(car.angle) * car.speed;
+                car.x += car.vx;
+                car.y += car.vy;
+            } else {
+                car.update(input, trackData, state.skidmarks, state.particles);
+            }
         });
 
         // Update bot cars (only non-finished)
@@ -599,12 +642,13 @@ function gameLoop() {
             if (car.isRemote && !car.finished) car.interpolateRemote();
         });
 
-        // Collisions
+        // Collisions (skips ghost cars via physics.js)
         handleAllCollisions(state.cars, state.particles);
 
         // ---- Track finish order ----
         for (const car of state.cars) {
             if (car.finished && !state.finishOrder.find(f => f.slot === car.slot)) {
+                car.isGhost = true;
                 const name = getCarName(car);
                 const raceTime = performance.now() - state.raceStartTime;
 
@@ -615,12 +659,10 @@ function gameLoop() {
                     color: car.color
                 });
 
-                // Start end timer on first finish
                 if (state.finishOrder.length === 1) {
                     state.raceEndTime = performance.now() + RACE_END_TIMEOUT;
                 }
 
-                // Send to server for online mode (local car only)
                 if (state.mode === 'online' && car.isLocal) {
                     net.sendFinished(car.slot);
                 }
@@ -633,13 +675,12 @@ function gameLoop() {
             const timeout = performance.now() > state.raceEndTime;
 
             if (allFinished || timeout) {
-                // Add remaining cars as DNF
                 for (const car of state.cars) {
                     if (!state.finishOrder.find(f => f.slot === car.slot)) {
                         state.finishOrder.push({
                             slot: car.slot,
                             name: getCarName(car),
-                            time: null, // DNF
+                            time: null,
                             color: car.color
                         });
                     }
@@ -648,10 +689,7 @@ function gameLoop() {
             }
         }
 
-        // Compute ranking
         computeRanking();
-
-        // Update HUD
         state.cars.forEach((car, i) => updateHUD(i, car, TOTAL_LAPS));
 
         // Network: send state
@@ -669,15 +707,44 @@ function gameLoop() {
 
     // ---- Render ----
     drawTrack();
+    drawPodiumArea(); // Draw podium zone inside the track
     drawParticles();
 
-    // Draw cars (sorted by slot for consistent layering)
-    state.cars.forEach(car => car.draw(ctx));
+    // Draw cars
+    state.cars.forEach(car => {
+        if (car.isGhost) {
+            // Ghost: only the local player sees their own ghost
+            if (car.isLocal) {
+                car.draw(ctx, true); // force ghost appearance
+            }
+            // Remote/bot ghosts: don't draw on track (shown on podium instead)
+        } else {
+            car.draw(ctx);
+        }
+    });
+
+    // Draw finished cars on podium
+    drawCarsOnPodium();
 
     // ---- Overlays ----
 
+    // Waiting for server overlay (online sync)
+    if (state.waitingForGo) {
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+        ctx.fillStyle = '#f1c40f';
+        ctx.font = '48px "Outfit", Impact, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('GET READY...', CANVAS_W / 2, CANVAS_H / 2);
+        ctx.fillStyle = '#7f8c8d';
+        ctx.font = '20px "Outfit", sans-serif';
+        ctx.fillText('Synchronizing with all players', CANVAS_W / 2, CANVAS_H / 2 + 50);
+        ctx.textBaseline = 'alphabetic';
+    }
+
     // Countdown overlay
-    if (!state.gameStarted) {
+    if (!state.gameStarted && !state.waitingForGo) {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
         ctx.fillStyle = '#f1c40f';
@@ -687,7 +754,7 @@ function gameLoop() {
 
         if (state.countdown === 0) {
             ctx.fillStyle = '#2ecc71';
-            ctx.fillText('VAI!!!', CANVAS_W / 2, CANVAS_H / 2);
+            ctx.fillText('GO!!!', CANVAS_W / 2, CANVAS_H / 2);
         } else {
             ctx.fillText(state.countdown, CANVAS_W / 2, CANVAS_H / 2);
         }
@@ -698,22 +765,21 @@ function gameLoop() {
     if (state.gameStarted && !state.raceFullyEnded) {
         drawRanking();
 
-        // Show countdown timer after first finisher
         if (state.finishOrder.length > 0) {
             const remaining = Math.max(0, Math.ceil((state.raceEndTime - performance.now()) / 1000));
             ctx.fillStyle = 'rgba(0,0,0,0.5)';
             ctx.font = 'bold 24px "Outfit", sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`⏱️ ${remaining}s restantes`, CANVAS_W / 2, 40);
+            ctx.fillText(`⏱️ ${remaining}s remaining`, CANVAS_W / 2, 40);
         }
     }
 
     // Podium overlay (race fully ended)
     if (state.raceFullyEnded) {
-        drawPodium();
+        drawPodiumOverlay();
 
         if (keys['Enter']) {
-            keys['Enter'] = false; // prevent re-trigger
+            keys['Enter'] = false;
             returnToMenuScreen();
         }
     }
@@ -723,9 +789,6 @@ function gameLoop() {
 
 // ---- Rendering ----
 
-/**
- * Helper: draw a rounded rectangle path on the canvas.
- */
 function roundRect(x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -740,9 +803,6 @@ function roundRect(x, y, w, h, r) {
     ctx.closePath();
 }
 
-/**
- * Draw the live ranking panel in the top-right corner.
- */
 function drawRanking() {
     const ranking = state.ranking;
     if (!ranking || ranking.length === 0) return;
@@ -754,25 +814,21 @@ function drawRanking() {
     const panelX = CANVAS_W - panelW - 15;
     const panelY = 15;
 
-    // Panel background with glassmorphism
     ctx.fillStyle = 'rgba(10, 14, 23, 0.80)';
     roundRect(panelX, panelY, panelW, panelH, 10);
     ctx.fill();
 
-    // Subtle border
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.10)';
     ctx.lineWidth = 1;
     roundRect(panelX, panelY, panelW, panelH, 10);
     ctx.stroke();
 
-    // Header
     ctx.fillStyle = '#f1c40f';
     ctx.font = 'bold 14px "Outfit", sans-serif';
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('🏁 POSIÇÕES', panelX + 12, panelY + headerH / 2);
+    ctx.fillText('🏁 POSITIONS', panelX + 12, panelY + headerH / 2);
 
-    // Rows
     const posColors = ['#FFD700', '#C0C0C0', '#CD7F32', '#777'];
     const posEmojis = ['🥇', '🥈', '🥉', ' 4'];
 
@@ -780,7 +836,6 @@ function drawRanking() {
         const rowY = panelY + headerH + i * rowH;
         const centerY = rowY + rowH / 2;
 
-        // Highlight row for local player
         const isLocalPlayer = state.localSlots.includes(entry.slot);
         if (isLocalPlayer) {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
@@ -788,34 +843,30 @@ function drawRanking() {
             ctx.fill();
         }
 
-        // Position
         ctx.fillStyle = posColors[i] || '#666';
         ctx.font = 'bold 14px "Outfit", sans-serif';
         ctx.textAlign = 'left';
         ctx.fillText(posEmojis[i] || `${i + 1}`, panelX + 10, centerY);
 
-        // Color dot
         ctx.fillStyle = entry.color;
         ctx.beginPath();
         ctx.arc(panelX + 50, centerY, 5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Name
         ctx.fillStyle = isLocalPlayer ? '#fff' : '#bdc3c7';
         ctx.font = `${isLocalPlayer ? 'bold ' : ''}13px "Outfit", sans-serif`;
         const displayName = entry.name.length > 10 ? entry.name.slice(0, 10) + '..' : entry.name;
         ctx.fillText(displayName, panelX + 62, centerY);
 
-        // Lap or finished indicator
         ctx.textAlign = 'right';
         if (entry.finished) {
             ctx.fillStyle = '#2ecc71';
             ctx.font = 'bold 12px "Outfit", sans-serif';
-            ctx.fillText('✓ FIM', panelX + panelW - 10, centerY);
+            ctx.fillText('✓ DONE', panelX + panelW - 10, centerY);
         } else {
             ctx.fillStyle = '#7f8c8d';
             ctx.font = '12px "Outfit", sans-serif';
-            ctx.fillText(`V${entry.lap}/${TOTAL_LAPS}`, panelX + panelW - 10, centerY);
+            ctx.fillText(`L${entry.lap}/${TOTAL_LAPS}`, panelX + panelW - 10, centerY);
         }
         ctx.textAlign = 'left';
     });
@@ -824,32 +875,81 @@ function drawRanking() {
 }
 
 /**
+ * Draw the podium area inside the track where finished cars are parked.
+ */
+function drawPodiumArea() {
+    if (state.finishOrder.length === 0) return;
+
+    const center = getPodiumCenter();
+    const positions = getPodiumPositions();
+    const medals = ['🥇', '🥈', '🥉', '4'];
+
+    // Background circle
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, 55, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Position labels
+    ctx.font = '12px "Outfit", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    state.finishOrder.forEach((entry, i) => {
+        if (i >= 4) return;
+        const pos = positions[i];
+        ctx.fillStyle = 'rgba(255,255,255,0.5)';
+        ctx.fillText(medals[i], pos.x, pos.y - 25);
+    });
+
+    ctx.textBaseline = 'alphabetic';
+}
+
+/**
+ * Draw finished cars parked on the podium positions.
+ */
+function drawCarsOnPodium() {
+    const positions = getPodiumPositions();
+
+    state.finishOrder.forEach((entry, i) => {
+        if (i >= 4) return;
+        const car = state.cars.find(c => c.slot === entry.slot);
+        if (!car) return;
+
+        const pos = positions[i];
+        car.drawOnPodium(ctx, pos.x, pos.y, i === 0 ? 1.4 : 1.1);
+    });
+}
+
+/**
  * Draw the end-of-race podium overlay.
  */
-function drawPodium() {
+function drawPodiumOverlay() {
     const order = state.finishOrder;
     if (!order || order.length === 0) return;
 
-    // Dark overlay
     ctx.fillStyle = 'rgba(5, 8, 15, 0.92)';
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // ---- Title ----
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
     ctx.fillStyle = '#f1c40f';
     ctx.font = 'bold 52px "Outfit", Impact, sans-serif';
-    ctx.fillText('🏁 FIM DE CORRIDA!', CANVAS_W / 2, 80);
+    ctx.fillText('🏁 RACE FINISHED!', CANVAS_W / 2, 80);
 
-    // Track name subtitle
     ctx.fillStyle = '#5a6270';
     ctx.font = '16px "Outfit", sans-serif';
-    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${TOTAL_LAPS} voltas`, CANVAS_W / 2, 115);
+    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${TOTAL_LAPS} laps`, CANVAS_W / 2, 115);
 
-    // ---- Podium bars ----
     const medals = ['🥇', '🥈', '🥉', ''];
-    const posLabels = ['1º LUGAR', '2º LUGAR', '3º LUGAR', '4º LUGAR'];
+    const posLabels = ['1st PLACE', '2nd PLACE', '3rd PLACE', '4th PLACE'];
     const barBg = [
         'rgba(255, 215, 0, 0.12)',
         'rgba(192, 192, 192, 0.09)',
@@ -861,12 +961,6 @@ function drawPodium() {
         'rgba(192, 192, 192, 0.35)',
         'rgba(205, 127, 50, 0.3)',
         'rgba(100, 100, 100, 0.2)'
-    ];
-    const barGlow = [
-        'rgba(255, 215, 0, 0.08)',
-        'rgba(192, 192, 192, 0.05)',
-        'rgba(205, 127, 50, 0.04)',
-        'rgba(100, 100, 100, 0.02)'
     ];
 
     const barW = 520;
@@ -880,33 +974,29 @@ function drawPodium() {
         const y = startY + i * gap;
         const x = (CANVAS_W - barW) / 2;
 
-        // Glow effect for 1st place
         if (i === 0) {
             ctx.shadowColor = 'rgba(255, 215, 0, 0.3)';
             ctx.shadowBlur = 20;
         }
 
-        // Bar background
         ctx.fillStyle = barBg[i];
         roundRect(x, y, barW, barH, 14);
         ctx.fill();
         ctx.shadowBlur = 0;
 
-        // Bar border
         ctx.strokeStyle = barBorder[i];
         ctx.lineWidth = 2;
         roundRect(x, y, barW, barH, 14);
         ctx.stroke();
 
-        // Car color accent bar on the left
+        // Color accent bar
         ctx.fillStyle = entry.color;
         roundRect(x, y, 6, barH, 14);
         ctx.fill();
         ctx.fillRect(x + 3, y, 6, barH);
 
-        // Medal + Position label
+        // Position label
         ctx.textAlign = 'left';
-        ctx.textBaseline = 'middle';
         const posColor = i === 0 ? '#FFD700' : i === 1 ? '#C0C0C0' : i === 2 ? '#CD7F32' : '#888';
         ctx.fillStyle = posColor;
         ctx.font = 'bold 22px "Outfit", sans-serif';
@@ -917,14 +1007,14 @@ function drawPodium() {
         ctx.font = 'bold 20px "Outfit", sans-serif';
         ctx.fillText(entry.name, x + 20, y + barH / 2 + 14);
 
-        // Color dot next to name
+        // Color dot
         ctx.fillStyle = entry.color;
         ctx.beginPath();
         const nameWidth = ctx.measureText(entry.name).width;
         ctx.arc(x + 28 + nameWidth + 10, y + barH / 2 + 14, 5, 0, Math.PI * 2);
         ctx.fill();
 
-        // Time on the right
+        // Time
         ctx.textAlign = 'right';
         if (entry.time !== null) {
             const totalSec = entry.time / 1000;
@@ -936,7 +1026,6 @@ function drawPodium() {
             ctx.font = '18px "Outfit", sans-serif';
             ctx.fillText(timeStr, x + barW - 20, y + barH / 2 - 10);
 
-            // Time diff from 1st
             if (i > 0 && order[0].time !== null) {
                 const diff = ((entry.time - order[0].time) / 1000).toFixed(2);
                 ctx.fillStyle = '#e74c3c';
@@ -951,13 +1040,12 @@ function drawPodium() {
         ctx.textAlign = 'left';
     });
 
-    // ---- Return instruction ----
+    // Return instruction
     ctx.textAlign = 'center';
     const returnText = state.mode === 'online'
-        ? 'Pressione ENTER para voltar à Sala'
-        : 'Pressione ENTER para voltar ao Menu';
+        ? 'Press ENTER to return to Room'
+        : 'Press ENTER to return to Menu';
 
-    // Pulsing animation
     const pulse = 0.6 + Math.sin(performance.now() / 400) * 0.4;
     ctx.fillStyle = `rgba(241, 196, 15, ${pulse})`;
     ctx.font = '20px "Outfit", sans-serif';
@@ -998,7 +1086,6 @@ function drawFinishLine() {
     const fl = t.finishLine;
 
     ctx.save();
-
     const cx = (fl.x1 + fl.x2) / 2;
     const cy = (fl.y1 + fl.y2) / 2;
     const lineAngle = Math.atan2(fl.y2 - fl.y1, fl.x2 - fl.x1);
@@ -1025,7 +1112,6 @@ function drawFinishLine() {
 function drawTrack() {
     const t = TRACKS[state.trackIdx];
 
-    // Grass background
     const grassGrad = ctx.createRadialGradient(
         CANVAS_W / 2, CANVAS_H / 2, 200,
         CANVAS_W / 2, CANVAS_H / 2, 800
@@ -1035,7 +1121,6 @@ function drawTrack() {
     ctx.fillStyle = grassGrad;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
-    // Subtle grass pattern
     ctx.fillStyle = 'rgba(0,0,0,0.03)';
     for (let i = 0; i < 60; i++) {
         const gx = (i * 127 + 43) % CANVAS_W;
@@ -1045,7 +1130,6 @@ function drawTrack() {
         ctx.fill();
     }
 
-    // Skidmarks
     ctx.fillStyle = 'rgba(0,0,0,0.12)';
     for (const sm of state.skidmarks) {
         ctx.beginPath();
@@ -1053,13 +1137,11 @@ function drawTrack() {
         ctx.fill();
     }
 
-    // Track layers
-    drawBezierTrack(t.width + 18, '#fff');       // white border
-    drawBezierTrack(t.width, '#2c3e50');          // asphalt
-    drawBezierTrack(t.width - 10, '#34495e');     // asphalt inner shade
-    drawBezierTrack(2, '#f1c40f', true);          // center dashed line
+    drawBezierTrack(t.width + 18, '#fff');
+    drawBezierTrack(t.width, '#2c3e50');
+    drawBezierTrack(t.width - 10, '#34495e');
+    drawBezierTrack(2, '#f1c40f', true);
 
-    // Finish line
     drawFinishLine();
 
     // Checkpoint markers (subtle dashed lines across the track)
@@ -1078,7 +1160,6 @@ function drawTrack() {
 }
 
 function drawParticles() {
-    // Iterate in reverse to safely remove dead particles
     for (let i = state.particles.length - 1; i >= 0; i--) {
         const p = state.particles[i];
         p.x += p.vx;
@@ -1110,7 +1191,6 @@ function init() {
     showMenu();
 }
 
-// Start when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
 } else {

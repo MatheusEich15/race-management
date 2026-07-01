@@ -40,6 +40,7 @@ export class DriftCar {
         this.isBot = false;
         this.isRemote = false;
         this.isLocal = false;
+        this.isGhost = false;
 
         // Remote interpolation targets
         this.targetX = 0; this.targetY = 0;
@@ -179,8 +180,11 @@ export class DriftCar {
     /**
      * Draw the car on a canvas context.
      */
-    draw(ctx) {
+    draw(ctx, forceGhost = false) {
+        const ghost = this.isGhost || forceGhost;
+
         ctx.save();
+        if (ghost) ctx.globalAlpha = 0.3;
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle + Math.PI / 2);
 
@@ -219,6 +223,36 @@ export class DriftCar {
         ctx.restore();
 
         // Slot indicator (small number on roof)
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(String(this.slot + 1), 0, 5);
+
+        ctx.restore();
+    }
+
+    /**
+     * Draw a static car at a podium position.
+     */
+    drawOnPodium(ctx, px, py, scale = 1.2) {
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.scale(scale, scale);
+
+        // Car body
+        ctx.fillStyle = this.color;
+        ctx.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+
+        // Racing stripes
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillRect(-this.width / 2 + 4, -this.height / 2, 3, this.height);
+        ctx.fillRect(this.width / 2 - 7, -this.height / 2, 3, this.height);
+
+        // Windshield
+        ctx.fillStyle = '#1e272e';
+        ctx.fillRect(-this.width / 2 + 2, -this.height / 6, this.width - 4, this.height / 2.2);
+
+        // Slot number
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
         ctx.font = 'bold 10px Arial';
         ctx.textAlign = 'center';

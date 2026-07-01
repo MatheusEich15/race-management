@@ -74,15 +74,15 @@ export function buildHUD(cars, opts) {
         } else if (car.isRemote) {
             label = `ONLINE ${PLAYER_NAMES[car.slot]}`;
         } else {
-            const controlHint = car.slot === 0 ? '(SETAS + SHIFT)' : '(TFGH + Q)';
-            label = `JOGADOR ${car.slot + 1} ${opts.mode !== 'online' ? controlHint : ''}`;
+            const controlHint = car.slot === 0 ? '(ARROWS + SHIFT)' : '(TFGH + Q)';
+            label = `PLAYER ${car.slot + 1} ${opts.mode !== 'online' ? controlHint : ''}`;
         }
 
         card.innerHTML = `
             <div class="card-name" style="color: ${car.color};">${label}</div>
             <div class="card-stats">
-                <span>Volta: <b id="lap-${i}">1</b>/${opts.totalLaps}</span>
-                <span>Vel: <b id="speed-${i}">0</b> km/h</span>
+                <span>Lap: <b id="lap-${i}">1</b>/${opts.totalLaps}</span>
+                <span>Speed: <b id="speed-${i}">0</b> km/h</span>
             </div>
             <div class="nitro-bar">
                 <div id="nitro-${i}" class="nitro-fill" style="background: ${car.color}; width: 100%;"></div>

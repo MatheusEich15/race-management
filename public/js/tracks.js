@@ -3,11 +3,11 @@
 // ============================================================
 
 export const PLAYER_COLORS = ['#00d2d3', '#ff6b6b', '#ffd32a', '#6c5ce7'];
-export const PLAYER_NAMES  = ['CYAN', 'CORAL', 'GOLD', 'ROXO'];
+export const PLAYER_NAMES  = ['CYAN', 'CORAL', 'GOLD', 'PURPLE'];
 
 export const TRACKS = [
     {
-        name: "Mega Oval Perfeito",
+        name: "Perfect Mega Oval",
         theme: 'grass',
         grassColors: ['#10ac84', '#0b8463'],
         width: 180,
@@ -34,7 +34,7 @@ export const TRACKS = [
         ]
     },
     {
-        name: "Circuito Fluido S",
+        name: "Fluid S Circuit",
         theme: 'grass',
         grassColors: ['#0f9b72', '#0a7d5a'],
         width: 170,
@@ -61,35 +61,34 @@ export const TRACKS = [
         ]
     },
     {
-        name: "Infinity Loop",
+        name: "Desert Canyon",
         theme: 'sand',
         grassColors: ['#c4a35a', '#a08040'],
         width: 165,
         startPositions: [
-            { x: 895, y: 670 },
-            { x: 895, y: 730 },
-            { x: 950, y: 670 },
-            { x: 950, y: 730 },
+            { x: 895, y: 665 },
+            { x: 895, y: 725 },
+            { x: 950, y: 665 },
+            { x: 950, y: 725 },
         ],
         startAngle: Math.PI,
         finishLine: {
-            x1: 920, y1: 615, x2: 920, y2: 785,
+            x1: 920, y1: 610, x2: 920, y2: 780,
             nx: -1, ny: 0
         },
         points: [
-            {x: 700, y: 720}, {x: 260, y: 680}, {x: 220, y: 500},
-            {x: 700, y: 425}, {x: 1180, y: 350}, {x: 1220, y: 180},
-            {x: 700, y: 130}, {x: 220, y: 180}, {x: 180, y: 350},
-            {x: 700, y: 425}, {x: 1180, y: 500}, {x: 1140, y: 680}
+            {x: 700, y: 720}, {x: 300, y: 700}, {x: 180, y: 450},
+            {x: 300, y: 180}, {x: 700, y: 130}, {x: 1100, y: 180},
+            {x: 1250, y: 400}, {x: 1100, y: 680}
         ],
         checkpoints: [
-            {x: 200, y: 260, r: 140},
-            {x: 700, y: 130, r: 140},
-            {x: 1160, y: 600, r: 140}
+            {x: 300, y: 450, r: 150},
+            {x: 700, y: 130, r: 150},
+            {x: 1250, y: 400, r: 150}
         ]
     },
     {
-        name: "Ultra Wide Circuito",
+        name: "Ultra Wide Circuit",
         theme: 'grass',
         grassColors: ['#16a085', '#11806a'],
         width: 175,
@@ -115,20 +114,20 @@ export const TRACKS = [
         ]
     },
     {
-        name: "Circuito da Ferradura",
+        name: "Horseshoe Circuit",
         theme: 'desert',
         grassColors: ['#d4a76a', '#b8894d'],
         width: 170,
         startPositions: [
-            { x: 220, y: 685 },
-            { x: 290, y: 685 },
-            { x: 220, y: 740 },
-            { x: 290, y: 740 },
+            { x: 680, y: 125 },
+            { x: 680, y: 175 },
+            { x: 620, y: 125 },
+            { x: 620, y: 175 },
         ],
-        startAngle: -Math.PI / 2,
+        startAngle: 0,
         finishLine: {
-            x1: 160, y1: 710, x2: 350, y2: 710,
-            nx: 0, ny: -1
+            x1: 650, y1: 70, x2: 650, y2: 240,
+            nx: 1, ny: 0
         },
         points: [
             {x: 250, y: 720}, {x: 150, y: 150}, {x: 1250, y: 150},
@@ -136,9 +135,9 @@ export const TRACKS = [
             {x: 450, y: 500}
         ],
         checkpoints: [
-            {x: 150, y: 150, r: 140},
             {x: 1250, y: 150, r: 140},
-            {x: 950, y: 500, r: 140}
+            {x: 950, y: 500, r: 140},
+            {x: 150, y: 150, r: 140}
         ]
     },
     {

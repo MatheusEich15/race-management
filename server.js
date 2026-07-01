@@ -155,7 +155,7 @@ wss.on('connection', (ws) => {
                 }
 
                 if (room.state !== 'lobby') {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Corrida já iniciada' }));
+                    ws.send(JSON.stringify({ type: 'error', message: 'Race already started' }));
                     return;
                 }
 
@@ -255,7 +255,16 @@ wss.on('connection', (ws) => {
                 // Reset finished tracking
                 room.finishedPlayers = new Set();
 
-                console.log(`Room ${room.code}: race started!`);
+                // Synchronized start: send race_go after 4 seconds
+                // All clients setup during this time, then start simultaneously
+                setTimeout(() => {
+                    if (rooms.has(room.code) && room.state === 'racing') {
+                        broadcastToRoom(room, { type: 'race_go' });
+                        console.log(`Room ${room.code}: race_go sent!`);
+                    }
+                }, 4000);
+
+                console.log(`Room ${room.code}: race starting (4s countdown)...`);
                 break;
             }
 

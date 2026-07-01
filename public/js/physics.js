@@ -140,7 +140,9 @@ export function handleCarCollision(c1, c2, particles) {
  */
 export function handleAllCollisions(cars, particles) {
     for (let i = 0; i < cars.length; i++) {
+        if (cars[i].isGhost) continue;
         for (let j = i + 1; j < cars.length; j++) {
+            if (cars[j].isGhost) continue;
             handleCarCollision(cars[i], cars[j], particles);
         }
     }
