@@ -203,68 +203,97 @@ export function precomputeBezierPath(trackIdx) {
 }
 
 /**
- * Compute accurate finish lines for all tracks based on the Bézier path.
- * Ensures finish lines are properly positioned on the track centerline,
- * perpendicular to the direction of travel at the start grid.
+ * Compute accurate finish lines AND checkpoint lines for all tracks.
+ * Both are placed perpendicular to the track direction at the given position,
+ * spanning from one edge of the track to the other.
+ * Format: { x1, y1, x2, y2, nx, ny } — same as finishLine.
  */
-export function computeFinishLines() {
+export function computeTrackLines() {
     TRACKS.forEach((track, idx) => {
         const segments = precomputeBezierPath(idx);
         if (segments.length < 5) return;
 
-        // Find centroid of start positions
-        const cx = track.startPositions.reduce((s, p) => s + p.x, 0) / track.startPositions.length;
-        const cy = track.startPositions.reduce((s, p) => s + p.y, 0) / track.startPositions.length;
+        const spread = 3;
 
-        // Find nearest point on computed path
-        let bestDist = Infinity, bestIdx = 0;
+        // ---- Determine path direction using startAngle ----
+        // Find nearest path point to start grid centroid
+        const startCx = track.startPositions.reduce((s, p) => s + p.x, 0) / track.startPositions.length;
+        const startCy = track.startPositions.reduce((s, p) => s + p.y, 0) / track.startPositions.length;
+
+        let bestDist = Infinity, startPathIdx = 0;
         for (let i = 0; i < segments.length; i++) {
-            const dx = segments[i].x - cx;
-            const dy = segments[i].y - cy;
+            const dx = segments[i].x - startCx;
+            const dy = segments[i].y - startCy;
             const d = dx * dx + dy * dy;
-            if (d < bestDist) { bestDist = d; bestIdx = i; }
+            if (d < bestDist) { bestDist = d; startPathIdx = i; }
         }
 
-        // Compute tangent at this point using neighboring segments
-        const spread = 3;
-        const prevIdx = (bestIdx - spread + segments.length) % segments.length;
-        const nextIdx = (bestIdx + spread) % segments.length;
-        const prev = segments[prevIdx];
-        const next = segments[nextIdx];
-        let tx = next.x - prev.x;
-        let ty = next.y - prev.y;
-        const tlen = Math.sqrt(tx * tx + ty * ty);
-        if (tlen < 0.001) return;
-        tx /= tlen;
-        ty /= tlen;
+        // Tangent at start position
+        const prevI = (startPathIdx - spread + segments.length) % segments.length;
+        const nextI = (startPathIdx + spread) % segments.length;
+        const rawTx = segments[nextI].x - segments[prevI].x;
+        const rawTy = segments[nextI].y - segments[prevI].y;
 
-        // Ensure tangent matches start angle direction (cars should cross going forward)
+        // Compare with startAngle to know if path direction needs flipping
         const startDx = Math.cos(track.startAngle);
         const startDy = Math.sin(track.startAngle);
-        const dot = tx * startDx + ty * startDy;
-        if (dot < 0) {
-            tx = -tx;
-            ty = -ty;
+        const flipPath = (rawTx * startDx + rawTy * startDy) < 0;
+
+        // ---- Helper: compute a perpendicular line at a target position ----
+        function computeLineAt(targetX, targetY) {
+            // Find nearest path point
+            let best = Infinity, bIdx = 0;
+            for (let i = 0; i < segments.length; i++) {
+                const dx = segments[i].x - targetX;
+                const dy = segments[i].y - targetY;
+                const d = dx * dx + dy * dy;
+                if (d < best) { best = d; bIdx = i; }
+            }
+
+            // Compute tangent from neighbors
+            const pI = (bIdx - spread + segments.length) % segments.length;
+            const nI = (bIdx + spread) % segments.length;
+            let tx = segments[nI].x - segments[pI].x;
+            let ty = segments[nI].y - segments[pI].y;
+            const tlen = Math.sqrt(tx * tx + ty * ty);
+            if (tlen < 0.001) return null;
+            tx /= tlen;
+            ty /= tlen;
+
+            // Flip to match path direction
+            if (flipPath) { tx = -tx; ty = -ty; }
+
+            // Perpendicular direction (line spans this way across the track)
+            const px = -ty;
+            const py = tx;
+
+            // Center on nearest path point, span track width + margin
+            const center = segments[bIdx];
+            const halfSpan = (track.width / 2) + 15;
+
+            return {
+                x1: Math.round(center.x - px * halfSpan),
+                y1: Math.round(center.y - py * halfSpan),
+                x2: Math.round(center.x + px * halfSpan),
+                y2: Math.round(center.y + py * halfSpan),
+                nx: Math.round(tx * 1000) / 1000,
+                ny: Math.round(ty * 1000) / 1000
+            };
         }
 
-        // Perpendicular direction for finish line span
-        const px = -ty;
-        const py = tx;
+        // ---- Compute finish line ----
+        const fl = computeLineAt(startCx, startCy);
+        if (fl) track.finishLine = fl;
 
-        // Center on path point, span slightly wider than track
-        const center = segments[bestIdx];
-        const halfSpan = (track.width / 2) + 15;
-
-        track.finishLine = {
-            x1: Math.round(center.x - px * halfSpan),
-            y1: Math.round(center.y - py * halfSpan),
-            x2: Math.round(center.x + px * halfSpan),
-            y2: Math.round(center.y + py * halfSpan),
-            nx: Math.round(tx * 1000) / 1000,
-            ny: Math.round(ty * 1000) / 1000
-        };
+        // ---- Compute checkpoint lines ----
+        // Replace each {x, y, r} checkpoint with a {x1, y1, x2, y2, nx, ny} line
+        track.checkpoints = track.checkpoints.map(cp => {
+            const line = computeLineAt(cp.x, cp.y);
+            return line || cp; // fallback to original if computation fails
+        });
     });
 }
 
-// Auto-compute finish lines on module load
-computeFinishLines();
+// Auto-compute all track lines on module load
+computeTrackLines();
+

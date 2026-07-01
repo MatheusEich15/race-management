@@ -140,10 +140,10 @@ export class DriftCar {
             });
         }
 
-        // Checkpoint detection (intermediate)
+        // Checkpoint detection (line crossing — same logic as finish line)
         if (this.nextCheckpoint < track.checkpoints.length) {
             const cp = track.checkpoints[this.nextCheckpoint];
-            if (Math.sqrt((this.x - cp.x) ** 2 + (this.y - cp.y) ** 2) < cp.r) {
+            if (checkFinishCrossing(this.prevX, this.prevY, this.x, this.y, cp)) {
                 this.nextCheckpoint++;
             }
         }

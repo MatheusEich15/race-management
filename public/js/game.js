@@ -1062,14 +1062,15 @@ function drawTrack() {
     // Finish line
     drawFinishLine();
 
-    // Checkpoint markers (subtle)
-    ctx.globalAlpha = 0.15;
+    // Checkpoint markers (subtle dashed lines across the track)
+    ctx.globalAlpha = 0.18;
     t.checkpoints.forEach((cp, i) => {
         ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
+        ctx.lineWidth = 3;
+        ctx.setLineDash([8, 8]);
         ctx.beginPath();
-        ctx.arc(cp.x, cp.y, 20, 0, Math.PI * 2);
+        ctx.moveTo(cp.x1, cp.y1);
+        ctx.lineTo(cp.x2, cp.y2);
         ctx.stroke();
     });
     ctx.globalAlpha = 1;
