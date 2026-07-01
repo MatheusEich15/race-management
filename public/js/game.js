@@ -512,6 +512,15 @@ function setupOnlineGame(config) {
     // Start rendering but wait for race_go before countdown
     startRace();
     state.waitingForGo = true; // Show "WAITING..." until server sends race_go
+
+    // Fallback: if race_go never arrives, start anyway after 6 seconds
+    setTimeout(() => {
+        if (state.waitingForGo) {
+            console.warn('race_go not received — starting countdown via fallback');
+            state.waitingForGo = false;
+            beginCountdown();
+        }
+    }, 6000);
 }
 
 /**
