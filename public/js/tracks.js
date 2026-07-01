@@ -63,7 +63,7 @@ export const TRACKS = [
     {
         name: "Desert Canyon",
         theme: 'sand',
-        grassColors: ['#c4a35a', '#a08040'],
+        grassColors: ['#c4a35a', '#a08040'], 
         width: 165,
         startPositions: [
             { x: 875, y: 655 },
