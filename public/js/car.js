@@ -163,10 +163,12 @@ export class DriftCar {
         }
     }
 
-    /**
-     * Interpolate toward remote target state (for network play).
-     */
-    interpolateRemote(lerpFactor = 0.3) {
+    interpolateRemote(lerpFactor = 0.25) {
+        // Move by current velocity first (Dead Reckoning)
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Correct position toward network target
         this.x += (this.targetX - this.x) * lerpFactor;
         this.y += (this.targetY - this.y) * lerpFactor;
 

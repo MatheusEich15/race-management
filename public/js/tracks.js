@@ -12,10 +12,10 @@ export const TRACKS = [
         grassColors: ['#10ac84', '#0b8463'],
         width: 180,
         startPositions: [
-            { x: 190, y: 405 },
-            { x: 260, y: 405 },
-            { x: 190, y: 460 },
-            { x: 260, y: 460 },
+            { x: 180, y: 390 },
+            { x: 270, y: 390 },
+            { x: 180, y: 490 },
+            { x: 270, y: 490 },
         ],
         startAngle: -Math.PI / 2,
         finishLine: {
@@ -39,10 +39,10 @@ export const TRACKS = [
         grassColors: ['#0f9b72', '#0a7d5a'],
         width: 170,
         startPositions: [
-            { x: 195, y: 630 },
-            { x: 265, y: 630 },
-            { x: 195, y: 685 },
-            { x: 265, y: 685 },
+            { x: 185, y: 610 },
+            { x: 275, y: 610 },
+            { x: 185, y: 710 },
+            { x: 275, y: 710 },
         ],
         startAngle: -Math.PI / 2,
         finishLine: {
@@ -66,10 +66,10 @@ export const TRACKS = [
         grassColors: ['#c4a35a', '#a08040'],
         width: 165,
         startPositions: [
-            { x: 895, y: 665 },
-            { x: 895, y: 725 },
-            { x: 950, y: 665 },
-            { x: 950, y: 725 },
+            { x: 875, y: 655 },
+            { x: 875, y: 735 },
+            { x: 975, y: 655 },
+            { x: 975, y: 735 },
         ],
         startAngle: Math.PI,
         finishLine: {
@@ -93,10 +93,10 @@ export const TRACKS = [
         grassColors: ['#16a085', '#11806a'],
         width: 175,
         startPositions: [
-            { x: 195, y: 575 },
-            { x: 265, y: 575 },
-            { x: 195, y: 630 },
-            { x: 265, y: 630 },
+            { x: 185, y: 560 },
+            { x: 275, y: 560 },
+            { x: 185, y: 660 },
+            { x: 275, y: 660 },
         ],
         startAngle: -Math.PI / 2,
         finishLine: {
@@ -119,10 +119,10 @@ export const TRACKS = [
         grassColors: ['#d4a76a', '#b8894d'],
         width: 170,
         startPositions: [
-            { x: 680, y: 125 },
-            { x: 680, y: 175 },
-            { x: 620, y: 125 },
-            { x: 620, y: 175 },
+            { x: 700, y: 115 },
+            { x: 700, y: 185 },
+            { x: 595, y: 115 },
+            { x: 595, y: 185 },
         ],
         startAngle: 0,
         finishLine: {
@@ -146,10 +146,10 @@ export const TRACKS = [
         grassColors: ['#1a3c34', '#0f2820'],
         width: 190,
         startPositions: [
-            { x: 680, y: 135 },
-            { x: 680, y: 195 },
-            { x: 620, y: 135 },
-            { x: 620, y: 195 },
+            { x: 700, y: 120 },
+            { x: 700, y: 200 },
+            { x: 595, y: 120 },
+            { x: 595, y: 200 },
         ],
         startAngle: 0,
         finishLine: {
