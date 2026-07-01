@@ -50,6 +50,7 @@ let state = {
     running: false,
     botDifficulty: 'medio',
     botCount: 1,
+    lastNetSendTime: 0,
 };
 
 // ---- Input (Anti-Ghosting) ----
@@ -701,15 +702,19 @@ function gameLoop() {
         computeRanking();
         state.cars.forEach((car, i) => updateHUD(i, car, TOTAL_LAPS));
 
-        // Network: send state
+        // Network: send state (throttled to ~30Hz / every 33ms)
         if (state.mode === 'online' && state.gameStarted) {
-            const myCar = state.cars.find(c => c.slot === net.mySlot);
-            if (myCar) {
-                const botStates = state.botSlots.map(slot => {
-                    const bc = state.cars.find(c => c.slot === slot);
-                    return bc ? bc.serialize() : null;
-                }).filter(Boolean);
-                net.sendCarState(myCar.serialize(), botStates);
+            const now = performance.now();
+            if (now - state.lastNetSendTime >= 33) {
+                state.lastNetSendTime = now;
+                const myCar = state.cars.find(c => c.slot === net.mySlot);
+                if (myCar) {
+                    const botStates = state.botSlots.map(slot => {
+                        const bc = state.cars.find(c => c.slot === slot);
+                        return bc ? bc.serialize() : null;
+                    }).filter(Boolean);
+                    net.sendCarState(myCar.serialize(), botStates);
+                }
             }
         }
     }
