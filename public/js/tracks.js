@@ -1,0 +1,203 @@
+// ============================================================
+// tracks.js — Track definitions with improved start grids & finish lines
+// ============================================================
+
+export const PLAYER_COLORS = ['#00d2d3', '#ff6b6b', '#ffd32a', '#6c5ce7'];
+export const PLAYER_NAMES  = ['CYAN', 'CORAL', 'GOLD', 'ROXO'];
+
+export const TRACKS = [
+    {
+        name: "Mega Oval Perfeito",
+        theme: 'grass',
+        grassColors: ['#10ac84', '#0b8463'],
+        width: 180,
+        startPositions: [
+            { x: 190, y: 405 },
+            { x: 260, y: 405 },
+            { x: 190, y: 460 },
+            { x: 260, y: 460 },
+        ],
+        startAngle: -Math.PI / 2,
+        finishLine: {
+            x1: 130, y1: 435, x2: 320, y2: 435,
+            nx: 0, ny: -1
+        },
+        points: [
+            {x: 200, y: 650}, {x: 200, y: 200}, {x: 450, y: 130},
+            {x: 950, y: 130}, {x: 1200, y: 200}, {x: 1200, y: 650},
+            {x: 950, y: 720}, {x: 450, y: 720}
+        ],
+        checkpoints: [
+            {x: 700, y: 130, r: 150},
+            {x: 1200, y: 425, r: 150},
+            {x: 700, y: 720, r: 150}
+        ]
+    },
+    {
+        name: "Circuito Fluido S",
+        theme: 'grass',
+        grassColors: ['#0f9b72', '#0a7d5a'],
+        width: 170,
+        startPositions: [
+            { x: 195, y: 630 },
+            { x: 265, y: 630 },
+            { x: 195, y: 685 },
+            { x: 265, y: 685 },
+        ],
+        startAngle: -Math.PI / 2,
+        finishLine: {
+            x1: 130, y1: 655, x2: 320, y2: 655,
+            nx: 0, ny: -1
+        },
+        points: [
+            {x: 220, y: 720}, {x: 200, y: 180}, {x: 550, y: 140},
+            {x: 650, y: 460}, {x: 900, y: 460}, {x: 1000, y: 160},
+            {x: 1220, y: 220}, {x: 1200, y: 700}, {x: 700, y: 730}
+        ],
+        checkpoints: [
+            {x: 550, y: 140, r: 140},
+            {x: 775, y: 460, r: 140},
+            {x: 1200, y: 700, r: 140}
+        ]
+    },
+    {
+        name: "Infinity Loop",
+        theme: 'sand',
+        grassColors: ['#c4a35a', '#a08040'],
+        width: 165,
+        startPositions: [
+            { x: 895, y: 670 },
+            { x: 895, y: 730 },
+            { x: 950, y: 670 },
+            { x: 950, y: 730 },
+        ],
+        startAngle: Math.PI,
+        finishLine: {
+            x1: 920, y1: 615, x2: 920, y2: 785,
+            nx: -1, ny: 0
+        },
+        points: [
+            {x: 700, y: 720}, {x: 260, y: 680}, {x: 220, y: 500},
+            {x: 700, y: 425}, {x: 1180, y: 350}, {x: 1220, y: 180},
+            {x: 700, y: 130}, {x: 220, y: 180}, {x: 180, y: 350},
+            {x: 700, y: 425}, {x: 1180, y: 500}, {x: 1140, y: 680}
+        ],
+        checkpoints: [
+            {x: 200, y: 260, r: 140},
+            {x: 700, y: 130, r: 140},
+            {x: 1160, y: 600, r: 140}
+        ]
+    },
+    {
+        name: "Ultra Wide Circuito",
+        theme: 'grass',
+        grassColors: ['#16a085', '#11806a'],
+        width: 175,
+        startPositions: [
+            { x: 195, y: 575 },
+            { x: 265, y: 575 },
+            { x: 195, y: 630 },
+            { x: 265, y: 630 },
+        ],
+        startAngle: -Math.PI / 2,
+        finishLine: {
+            x1: 130, y1: 600, x2: 320, y2: 600,
+            nx: 0, ny: -1
+        },
+        points: [
+            {x: 220, y: 700}, {x: 200, y: 180}, {x: 1200, y: 180},
+            {x: 1180, y: 520}, {x: 650, y: 500}, {x: 600, y: 700}
+        ],
+        checkpoints: [
+            {x: 210, y: 180, r: 145},
+            {x: 1200, y: 180, r: 145},
+            {x: 800, y: 510, r: 145}
+        ]
+    },
+    {
+        name: "Circuito da Ferradura",
+        theme: 'desert',
+        grassColors: ['#d4a76a', '#b8894d'],
+        width: 170,
+        startPositions: [
+            { x: 220, y: 685 },
+            { x: 290, y: 685 },
+            { x: 220, y: 740 },
+            { x: 290, y: 740 },
+        ],
+        startAngle: -Math.PI / 2,
+        finishLine: {
+            x1: 160, y1: 710, x2: 350, y2: 710,
+            nx: 0, ny: -1
+        },
+        points: [
+            {x: 250, y: 720}, {x: 150, y: 150}, {x: 1250, y: 150},
+            {x: 1200, y: 720}, {x: 950, y: 500}, {x: 700, y: 700},
+            {x: 450, y: 500}
+        ],
+        checkpoints: [
+            {x: 150, y: 150, r: 140},
+            {x: 1250, y: 150, r: 140},
+            {x: 950, y: 500, r: 140}
+        ]
+    },
+    {
+        name: "Super Arena Oval",
+        theme: 'night',
+        grassColors: ['#1a3c34', '#0f2820'],
+        width: 190,
+        startPositions: [
+            { x: 680, y: 135 },
+            { x: 680, y: 195 },
+            { x: 620, y: 135 },
+            { x: 620, y: 195 },
+        ],
+        startAngle: 0,
+        finishLine: {
+            x1: 650, y1: 80, x2: 650, y2: 250,
+            nx: 1, ny: 0
+        },
+        points: [
+            {x: 700, y: 150}, {x: 1250, y: 200}, {x: 1250, y: 650},
+            {x: 700, y: 720}, {x: 150, y: 650}, {x: 150, y: 200}
+        ],
+        checkpoints: [
+            {x: 1250, y: 425, r: 160},
+            {x: 700, y: 720, r: 160},
+            {x: 150, y: 425, r: 160}
+        ]
+    }
+];
+
+/**
+ * Precompute the Bézier curve path for a track.
+ * Returns an array of {x, y} points along the center line.
+ */
+export function precomputeBezierPath(trackIdx) {
+    const t = TRACKS[trackIdx];
+    const segments = [];
+
+    const pStart = t.points[0];
+    const pEnd = t.points[t.points.length - 1];
+    let currentX = (pStart.x + pEnd.x) / 2;
+    let currentY = (pStart.y + pEnd.y) / 2;
+
+    for (let i = 0; i < t.points.length; i++) {
+        const pControl = t.points[i];
+        const pNext = t.points[(i + 1) % t.points.length];
+        const nextMidX = (pControl.x + pNext.x) / 2;
+        const nextMidY = (pControl.y + pNext.y) / 2;
+
+        const steps = 30;
+        for (let s = 0; s <= steps; s++) {
+            const pct = s / steps;
+            const inv = 1 - pct;
+            const bx = inv * inv * currentX + 2 * inv * pct * pControl.x + pct * pct * nextMidX;
+            const by = inv * inv * currentY + 2 * inv * pct * pControl.y + pct * pct * nextMidY;
+            segments.push({ x: bx, y: by });
+        }
+        currentX = nextMidX;
+        currentY = nextMidY;
+    }
+    return segments;
+}

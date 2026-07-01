@@ -1,0 +1,14 @@
+{
+  "name": "ultimate-drift-2d",
+  "version": "2.0.0",
+  "description": "Ultimate Drift Championship 2D — Online multiplayer racing game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "ws": "^8.18.0"
+  }
+}
