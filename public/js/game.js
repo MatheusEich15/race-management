@@ -50,6 +50,12 @@ let state = {
     running: false,
     botDifficulty: 'medio',
     botCount: 1,
+    soloBotCount: 1,
+    soloBotDifficulty: 'medio',
+    soloTrackIdx: 0,
+    localBotCount: 0,
+    localBotDifficulty: 'medio',
+    localTrackIdx: 0,
     lastNetSendTime: 0,
 };
 
@@ -151,58 +157,97 @@ function getPodiumPositions() {
 
 // ---- Menu Setup ----
 
-function initMenus() {
-    document.getElementById('btn-solo').addEventListener('click', () => {
-        setFlow('solo');
-        showSection('solo-setup');
-    });
-    document.getElementById('btn-local').addEventListener('click', () => {
-        setFlow('local');
-        showSection('local-setup');
-    });
-    document.getElementById('btn-online').addEventListener('click', () => {
-        setFlow('online');
-        showSection('online-menu');
-    });
+function buildCardTrackLists() {
+    const soloList = document.getElementById('solo-track-list');
+    const localList = document.getElementById('local-track-list');
+    
+    if (soloList) {
+        soloList.innerHTML = '';
+        TRACKS.forEach((track, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-track-card' + (i === state.soloTrackIdx ? ' active' : '');
+            btn.textContent = `${i + 1}. ${track.name}`;
+            btn.addEventListener('click', () => {
+                state.soloTrackIdx = i;
+                soloList.querySelectorAll('.btn-track-card').forEach((b, idx) => {
+                    b.classList.toggle('active', idx === i);
+                });
+            });
+            soloList.appendChild(btn);
+        });
+    }
 
-    // Solo setup
+    if (localList) {
+        localList.innerHTML = '';
+        TRACKS.forEach((track, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-track-card' + (i === state.localTrackIdx ? ' active' : '');
+            btn.textContent = `${i + 1}. ${track.name}`;
+            btn.addEventListener('click', () => {
+                state.localTrackIdx = i;
+                localList.querySelectorAll('.btn-track-card').forEach((b, idx) => {
+                    b.classList.toggle('active', idx === i);
+                });
+            });
+            localList.appendChild(btn);
+        });
+    }
+}
+
+function initMenus() {
+    // Build track selections within the cards
+    buildCardTrackLists();
+
+    // Solo Card Step Navigation
     document.getElementById('solo-bots').addEventListener('change', e => {
-        state.botCount = parseInt(e.target.value);
+        state.soloBotCount = parseInt(e.target.value);
     });
     document.getElementById('solo-diff').addEventListener('change', e => {
-        state.botDifficulty = e.target.value;
+        state.soloBotDifficulty = e.target.value;
     });
     document.getElementById('btn-solo-next').addEventListener('click', () => {
-        showSection('track-menu');
+        document.getElementById('solo-step-1').style.display = 'none';
+        document.getElementById('solo-step-2').style.display = 'flex';
     });
     document.getElementById('btn-solo-back').addEventListener('click', () => {
-        showSection('main-menu');
+        document.getElementById('solo-step-2').style.display = 'none';
+        document.getElementById('solo-step-1').style.display = 'flex';
+    });
+    document.getElementById('btn-solo-start').addEventListener('click', () => {
+        startSoloGame();
     });
 
-    // Local setup
+    // Local Card Step Navigation
     document.getElementById('local-bots').addEventListener('change', e => {
-        state.botCount = parseInt(e.target.value);
+        state.localBotCount = parseInt(e.target.value);
     });
     document.getElementById('local-diff').addEventListener('change', e => {
-        state.botDifficulty = e.target.value;
+        state.localBotDifficulty = e.target.value;
     });
     document.getElementById('btn-local-next').addEventListener('click', () => {
-        showSection('track-menu');
+        document.getElementById('local-step-1').style.display = 'none';
+        document.getElementById('local-step-2').style.display = 'flex';
     });
     document.getElementById('btn-local-back').addEventListener('click', () => {
-        showSection('main-menu');
+        document.getElementById('local-step-2').style.display = 'none';
+        document.getElementById('local-step-1').style.display = 'flex';
+    });
+    document.getElementById('btn-local-start').addEventListener('click', () => {
+        startLocalGame();
     });
 
-    // Online menu
+    // Online Card Step Navigation
     document.getElementById('btn-create').addEventListener('click', startCreateRoom);
     document.getElementById('btn-join-go').addEventListener('click', () => {
-        showSection('join-room');
+        document.getElementById('online-step-1').style.display = 'none';
+        document.getElementById('online-step-2').style.display = 'flex';
     });
     document.getElementById('btn-online-back').addEventListener('click', () => {
-        showSection('main-menu');
+        document.getElementById('online-step-2').style.display = 'none';
+        document.getElementById('online-step-1').style.display = 'flex';
     });
 
-    // Join room
+    // Join room confirm
     document.getElementById('btn-join-confirm').addEventListener('click', () => {
         const code = document.getElementById('input-room-code').value.trim().toUpperCase();
         const name = document.getElementById('input-join-name').value.trim() || 'Player';
@@ -212,28 +257,15 @@ function initMenus() {
         }
         joinRoom(code, name);
     });
-    document.getElementById('btn-join-back').addEventListener('click', () => {
-        showSection('online-menu');
-    });
 
-    // Lobby
+    // Lobby controls
     document.getElementById('btn-lobby-start').addEventListener('click', () => {
         net.startGame();
     });
     document.getElementById('btn-lobby-leave').addEventListener('click', () => {
         net.leaveRoom();
-        showSection('online-menu');
+        showMenu();
     });
-
-    // Track menu back
-    document.getElementById('btn-track-back').addEventListener('click', () => {
-        const flow = getFlow();
-        if (flow === 'solo') showSection('solo-setup');
-        else if (flow === 'local') showSection('local-setup');
-        else showSection('main-menu');
-    });
-
-    buildTrackGrid(selectTrack);
 
     // Lobby track selector
     const lobbyTrack = document.getElementById('lobby-track');
@@ -1197,12 +1229,91 @@ function drawParticles() {
     }
 }
 
+
+
+let isSplashTransitioning = false;
+
+function handleSplashEvent(e) {
+    if (isSplashTransitioning) return;
+    dismissSplashScreen();
+}
+
+function dismissSplashScreen() {
+    isSplashTransitioning = true;
+    window.removeEventListener('keydown', handleSplashEvent);
+    window.removeEventListener('mousedown', handleSplashEvent);
+
+    const pressStartEl = document.getElementById('press-start');
+    if (pressStartEl) {
+        pressStartEl.classList.add('fade-out');
+    }
+
+    // Add menu-active class to #menu to start title slide-up
+    const menuEl = document.getElementById('menu');
+    if (menuEl) {
+        menuEl.classList.add('menu-active');
+    }
+
+    // Wait for the fade-out of the splash text (400ms)
+    setTimeout(() => {
+        if (pressStartEl) {
+            pressStartEl.style.display = 'none';
+            pressStartEl.classList.remove('fade-out');
+        }
+
+        // Show main menu (cards grid)
+        showMenu();
+
+        // Stagger fade-in of the three cards
+        const cardSolo = document.getElementById('card-solo');
+        const cardLocal = document.getElementById('card-local');
+        const cardOnline = document.getElementById('card-online');
+
+        if (cardSolo) cardSolo.classList.add('animate-fade-in-up', 'delay-1');
+        if (cardLocal) cardLocal.classList.add('animate-fade-in-up', 'delay-2');
+        if (cardOnline) cardOnline.classList.add('animate-fade-in-up', 'delay-3');
+
+        // Clear any keys pressed during splash
+        Object.keys(keys).forEach(k => keys[k] = false);
+
+        // Clean up animation classes after they finish (1200ms)
+        setTimeout(() => {
+            if (cardSolo) cardSolo.classList.remove('animate-fade-in-up', 'delay-1');
+            if (cardLocal) cardLocal.classList.remove('animate-fade-in-up', 'delay-2');
+            if (cardOnline) cardOnline.classList.remove('animate-fade-in-up', 'delay-3');
+            isSplashTransitioning = false;
+        }, 1200);
+
+    }, 400);
+}
+
+function showSplashScreen() {
+    isSplashTransitioning = false;
+
+    // Ensure menu does NOT have menu-active class on fresh load (restores title centered)
+    const menuEl = document.getElementById('menu');
+    if (menuEl) {
+        menuEl.classList.remove('menu-active');
+    }
+
+    document.getElementById('menu').style.display = 'flex';
+    document.getElementById('hud').style.visibility = 'hidden';
+
+    showSection(null);
+
+    const pressStartEl = document.getElementById('press-start');
+    if (pressStartEl) pressStartEl.style.display = 'block';
+
+    window.addEventListener('keydown', handleSplashEvent);
+    window.addEventListener('mousedown', handleSplashEvent);
+}
+
 // ---- Initialize ----
 
 function init() {
     setupNetworkCallbacks();
     initMenus();
-    showMenu();
+    showSplashScreen();
 }
 
 if (document.readyState === 'loading') {

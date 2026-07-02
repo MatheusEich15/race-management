@@ -7,9 +7,7 @@ import { TRACKS, PLAYER_COLORS, PLAYER_NAMES } from './tracks.js';
 // ---- Menu Navigation ----
 
 const ALL_SECTIONS = [
-    'main-menu', 'solo-setup', 'local-setup',
-    'online-menu', 'create-room', 'join-room', 'lobby',
-    'track-menu'
+    'main-menu', 'lobby'
 ];
 
 let currentFlow = null; // 'solo' | 'local' | 'online'
@@ -24,6 +22,22 @@ export function showSection(id) {
 export function showMenu() {
     document.getElementById('menu').style.display = 'flex';
     document.getElementById('hud').style.visibility = 'hidden';
+    
+    // Reset cards steps to step 1
+    const solo1 = document.getElementById('solo-step-1');
+    const solo2 = document.getElementById('solo-step-2');
+    const local1 = document.getElementById('local-step-1');
+    const local2 = document.getElementById('local-step-2');
+    const online1 = document.getElementById('online-step-1');
+    const online2 = document.getElementById('online-step-2');
+
+    if (solo1) solo1.style.display = 'flex';
+    if (solo2) solo2.style.display = 'none';
+    if (local1) local1.style.display = 'flex';
+    if (local2) local2.style.display = 'none';
+    if (online1) online1.style.display = 'flex';
+    if (online2) online2.style.display = 'none';
+
     showSection('main-menu');
 }
 
