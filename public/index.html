@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ultimate Drift Championship 2D — Multiplayer Racing</title>
+    <title>Ultimate Drift Championship — Multiplayer Racing</title>
     <meta name="description" content="2D racing game with drift, online and local multiplayer. Up to 4 players in epic drift battles!">
     <link rel="stylesheet" href="/style.css">
 </head>
@@ -16,84 +16,140 @@
     <!-- Canvas + Menu Container -->
     <div id="canvasContainer">
         <div id="menu">
-            <div class="menu-title">ULTIMATE DRIFT 2D</div>
+            <div class="menu-title">ULTIMATE DRIFT</div>
             <div class="menu-subtitle">CHAMPIONSHIP</div>
 
-            <div class="controls-info">
-                <strong>Anti-Ghosting Controls:</strong><br>
-                P1: Arrow Keys + <b>SHIFT</b> (Nitro)<br>
-                P2: Keys <b>T / F / G / H</b> + <b>Q</b> (Nitro)
+            <div id="press-start" class="press-start-blink" style="display: none;">
+                Press any button to <span class="highlight-start">start</span>
             </div>
 
-            <!-- ======== MAIN MENU ======== -->
+            <!-- ======== MAIN MENU (CARDS CONTAINER) ======== -->
             <div id="main-menu" class="submenu" style="display: flex;">
-                <button class="btn btn-success" id="btn-solo">🏎️ SOLO vs BOTS</button>
-                <button class="btn btn-danger" id="btn-local">👥 LOCAL MODE (2P)</button>
-                <button class="btn btn-purple" id="btn-online">🌐 ONLINE (ROOMS)</button>
-            </div>
+                <div class="cards-grid">
+                    
+                    <!-- CARD 1: SOLO MODE -->
+                    <div class="mode-card" id="card-solo">
+                        <div class="card-header">
+                            <img src="./assets/icons/racing-car.png" alt="racing cars icon" class="card-icon">
+                            <span class="card-title">SOLO vs BOTS</span>
+                        </div>
+                        
+                        <div class="controls-info mini-controls">
+                            <strong>Controls:</strong><br>
+                            <div id="comands">
+                                <img src="./assets/icons/navigation.png" alt="">
+                                <p id="p">+ <b>SHIFT</b> (Nitro)<br></p>
+                            </div>
+                        </div>
 
-            <!-- ======== SOLO SETUP ======== -->
-            <div id="solo-setup" class="submenu">
-                <div class="section-title">SOLO SETUP</div>
-                <div class="setup-row">
-                    <label>Number of Bots:</label>
-                    <select id="solo-bots">
-                        <option value="1">1 Bot</option>
-                        <option value="2">2 Bots</option>
-                        <option value="3">3 Bots</option>
-                    </select>
-                </div>
-                <div class="setup-row">
-                    <label>Difficulty:</label>
-                    <select id="solo-diff">
-                        <option value="facil">🟢 Easy</option>
-                        <option value="medio" selected>🟠 Medium</option>
-                        <option value="dificil">🔴 Hard</option>
-                    </select>
-                </div>
-                <button class="btn" id="btn-solo-next">CHOOSE TRACK →</button>
-                <button class="btn btn-secondary btn-small" id="btn-solo-back">← BACK</button>
-            </div>
+                        <!-- Solo Step 1: Config -->
+                        <div class="card-step" id="solo-step-1">
+                            <div class="setup-row">
+                                <label>Bots:</label>
+                                <select id="solo-bots">
+                                    <option value="1">1 Bot</option>
+                                    <option value="2">2 Bots</option>
+                                    <option value="3">3 Bots</option>
+                                </select>
+                            </div>
+                            <div class="setup-row">
+                                <label>Difficulty:</label>
+                                <select id="solo-diff">
+                                    <option value="facil">🟢 Easy</option>
+                                    <option value="medio" selected>🟠 Medium</option>
+                                    <option value="dificil">🔴 Hard</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-card-next" id="btn-solo-next">CHOOSE TRACK →</button>
+                        </div>
 
-            <!-- ======== LOCAL SETUP ======== -->
-            <div id="local-setup" class="submenu">
-                <div class="section-title">LOCAL MODE — 2 PLAYERS</div>
-                <div class="setup-row">
-                    <label>Extra Bots:</label>
-                    <select id="local-bots">
-                        <option value="0" selected>None</option>
-                        <option value="1">1 Bot</option>
-                        <option value="2">2 Bots</option>
-                    </select>
-                </div>
-                <div class="setup-row">
-                    <label>Difficulty:</label>
-                    <select id="local-diff">
-                        <option value="facil">🟢 Easy</option>
-                        <option value="medio" selected>🟠 Medium</option>
-                        <option value="dificil">🔴 Hard</option>
-                    </select>
-                </div>
-                <button class="btn" id="btn-local-next">CHOOSE TRACK →</button>
-                <button class="btn btn-secondary btn-small" id="btn-local-back">← BACK</button>
-            </div>
+                        <!-- Solo Step 2: Track Select -->
+                        <div class="card-step" id="solo-step-2" style="display: none;">
+                            <div class="track-select-wrapper">
+                                <label class="setup-label">Select Track:</label>
+                                <div class="track-list" id="solo-track-list"></div>
+                            </div>
+                            <button class="btn btn-success btn-card-next" id="btn-solo-start">🏁 START SOLO</button>
+                            <button class="btn btn-secondary btn-card-back" id="btn-solo-back">← BACK</button>
+                        </div>
+                    </div>
 
-            <!-- ======== ONLINE MENU ======== -->
-            <div id="online-menu" class="submenu">
-                <div class="section-title">ONLINE MODE</div>
-                <input class="input-field" id="input-create-name" placeholder="Your name" maxlength="12" value="">
-                <button class="btn btn-success" id="btn-create">🏠 CREATE ROOM</button>
-                <button class="btn" id="btn-join-go">🔗 JOIN ROOM</button>
-                <button class="btn btn-secondary btn-small" id="btn-online-back">← BACK</button>
-            </div>
+                    <!-- CARD 2: LOCAL MODE -->
+                    <div class="mode-card" id="card-local">
+                        <div class="card-header">
+                            <img src="./assets/icons/racing-cars.png" alt="racing cars icon" class="card-icon">
+                            <span class="card-title">LOCAL MODE</span>
+                        </div>
+                        
+                        <div class="controls-info mini-controls">
+                            <strong>Controls:</strong><br>
+                            P1: <img src="./assets/icons/navigation.png"> + SHIFT | P2: <img src="./assets/icons/wasd.png"> + Q
+                        </div>
 
-            <!-- ======== JOIN ROOM ======== -->
-            <div id="join-room" class="submenu">
-                <div class="section-title">JOIN ROOM</div>
-                <input class="input-field" id="input-join-name" placeholder="Your name" maxlength="12">
-                <input class="input-field input-code" id="input-room-code" placeholder="ABCD" maxlength="4">
-                <button class="btn btn-success" id="btn-join-confirm">JOIN</button>
-                <button class="btn btn-secondary btn-small" id="btn-join-back">← BACK</button>
+                        <!-- Local Step 1: Config -->
+                        <div class="card-step" id="local-step-1">
+                            <div class="setup-row">
+                                <label>Extra Bots:</label>
+                                <select id="local-bots">
+                                    <option value="0" selected>None</option>
+                                    <option value="1">1 Bot</option>
+                                    <option value="2">2 Bots</option>
+                                </select>
+                            </div>
+                            <div class="setup-row">
+                                <label>Difficulty:</label>
+                                <select id="local-diff">
+                                    <option value="facil">🟢 Easy</option>
+                                    <option value="medio" selected>🟠 Medium</option>
+                                    <option value="dificil">🔴 Hard</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-card-next" id="btn-local-next">CHOOSE TRACK →</button>
+                        </div>
+
+                        <!-- Local Step 2: Track Select -->
+                        <div class="card-step" id="local-step-2" style="display: none;">
+                            <div class="track-select-wrapper">
+                                <label class="setup-label">Select Track:</label>
+                                <div class="track-list" id="local-track-list"></div>
+                            </div>
+                            <button class="btn btn-success btn-card-next" id="btn-local-start">🏁 START LOCAL</button>
+                            <button class="btn btn-secondary btn-card-back" id="btn-local-back">← BACK</button>
+                        </div>
+                    </div>
+
+                    <!-- CARD 3: ONLINE MULTIPLAYER -->
+                    <div class="mode-card" id="card-online">
+                        <div class="card-header">
+                            <img src="./assets/icons/online.png" alt="earth globe icon" class="card-icon">
+                            <span class="card-title">ONLINE MODE</span>
+                        </div>
+                        
+                        <div class="controls-info mini-controls">
+                            <strong>Controls:</strong><br>
+                            <div id="comands">
+                                <img src="./assets/icons/navigation.png" alt="">
+                                <p id="p">+ <b>SHIFT</b> (Nitro)<br></p>
+                            </div>
+                        </div>
+
+                        <!-- Online Step 1: Option Choose -->
+                        <div class="card-step" id="online-step-1">
+                            <input class="input-field" id="input-create-name" placeholder="Your name" maxlength="12" value="">
+                            <button class="btn btn-success" id="btn-create">🏠 CREATE ROOM</button>
+                            <button class="btn btn-card-next" id="btn-join-go">🔗 JOIN ROOM</button>
+                        </div>
+
+                        <!-- Online Step 2: Join Code Entry -->
+                        <div class="card-step" id="online-step-2" style="display: none;">
+                            <input class="input-field" id="input-join-name" placeholder="Your name" maxlength="12">
+                            <input class="input-field input-code" id="input-room-code" placeholder="ABCD" maxlength="4">
+                            <button class="btn btn-success" id="btn-join-confirm">JOIN ROOM</button>
+                            <button class="btn btn-secondary btn-card-back" id="btn-online-back">← BACK</button>
+                        </div>
+                    </div>
+
+                </div>
             </div>
 
             <!-- ======== LOBBY ======== -->
@@ -130,13 +186,6 @@
                 <button class="btn btn-success" id="btn-lobby-start" style="display:none;">🏁 START RACE</button>
                 <div class="lobby-info">Waiting for host to start the race...</div>
                 <button class="btn btn-secondary btn-small" id="btn-lobby-leave">LEAVE ROOM</button>
-            </div>
-
-            <!-- ======== TRACK SELECTION ======== -->
-            <div id="track-menu" class="submenu">
-                <div class="section-title">CHOOSE TRACK</div>
-                <div id="track-grid"></div>
-                <button class="btn btn-secondary btn-small" id="btn-track-back">← BACK</button>
             </div>
         </div>
 
