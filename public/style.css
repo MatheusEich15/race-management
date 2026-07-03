@@ -232,6 +232,20 @@ canvas {
     font-weight: 700;
 }
 
+#comands {
+    display: flex;
+    justify-content: center;
+    gap: 0.18rem;
+}
+
+#comands p {
+    margin-top: 0.55rem;
+}
+
+#comands #p {
+    margin-top: 0.75rem;
+}
+
 /* ---- Buttons ---- */
 .btn {
     background: linear-gradient(135deg, #2980b9, #3498db);
