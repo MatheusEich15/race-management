@@ -143,6 +143,7 @@ canvas {
 
 #menu.menu-active {
     padding-top: 40px;
+    padding-bottom: 40px;
 }
 
 /* ---- Title ---- */
@@ -246,6 +247,10 @@ canvas {
     margin-top: 0.75rem;
 }
 
+#comands img {
+    object-fit: contain;
+}
+
 /* ---- Buttons ---- */
 .btn {
     background: linear-gradient(135deg, #2980b9, #3498db);
@@ -288,30 +293,39 @@ canvas {
 }
 
 .btn-success {
-    background: linear-gradient(135deg, #27ae60, #2ecc71);
-    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+    background: linear-gradient(135deg, #1e8449, #27ae60);
+    box-shadow: 0 4px 15px rgba(30, 132, 73, 0.3);
 }
 
 .btn-success:hover {
-    box-shadow: 0 6px 25px rgba(46, 204, 113, 0.5);
+    box-shadow: 0 6px 25px rgba(39, 174, 96, 0.5);
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, #c0392b, #e74c3c);
-    box-shadow: 0 4px 15px rgba(192, 57, 43, 0.3);
+    background: linear-gradient(135deg, #991b1b, #dc2626);
+    box-shadow: 0 4px 15px rgba(153, 27, 27, 0.3);
 }
 
 .btn-danger:hover {
-    box-shadow: 0 6px 25px rgba(231, 76, 60, 0.5);
+    box-shadow: 0 6px 25px rgba(220, 38, 38, 0.5);
 }
 
 .btn-purple {
-    background: linear-gradient(135deg, #8e44ad, #9b59b6);
-    box-shadow: 0 4px 15px rgba(142, 68, 173, 0.3);
+    background: linear-gradient(135deg, #531f7a, #8c44d4);
+    box-shadow: 0 4px 15px rgba(83, 31, 122, 0.3);
 }
 
 .btn-purple:hover {
-    box-shadow: 0 6px 25px rgba(155, 89, 182, 0.5);
+    box-shadow: 0 6px 25px rgba(140, 68, 212, 0.5);
+}
+
+.btn-blue {
+    background: linear-gradient(135deg, #2a0c54, #3d1375);
+    box-shadow: 0 4px 15px rgba(42, 12, 84, 0.35);
+}
+
+.btn-blue:hover {
+    box-shadow: 0 6px 25px rgba(61, 19, 117, 0.5);
 }
 
 .btn-secondary {
@@ -339,6 +353,9 @@ canvas {
     display: none;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+    width: 100%;
     animation: fadeIn 0.3s ease;
 }
 
@@ -378,33 +395,48 @@ canvas {
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;
-    width: 360px;
+    width: 320px;
     padding: 24px;
     display: flex;
     flex-direction: column;
     align-items: center;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
     transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
-    height: 480px;
+    height: 440px;
     position: relative;
     overflow: hidden;
 }
 
 .mode-card:hover {
     transform: translateY(-5px);
-    border-color: rgba(59, 130, 246, 0.4);
-    box-shadow: 0 15px 50px rgba(59, 130, 246, 0.15);
 }
 
 /* Card Mode Color Accents */
 #card-solo {
-    border-top: 4px solid #2ecc71;
+    border-top: 4px solid #27ae60;
 }
+
+#card-solo:hover {
+    border-color: rgba(39, 174, 96, 0.5);
+    box-shadow: 0 15px 50px rgba(39, 174, 96, 0.2);
+}
+
 #card-local {
-    border-top: 4px solid #e74c3c;
+    border-top: 4px solid #dc2626;
 }
+
+#card-local:hover {
+    border-color: rgba(220, 38, 38, 0.5);
+    box-shadow: 0 15px 50px rgba(220, 38, 38, 0.2);
+}
+
 #card-online {
-    border-top: 4px solid #9b59b6;
+    border-top: 4px solid #8040b8;
+}
+
+#card-online:hover {
+    border-color: rgba(128, 64, 184, 0.5);
+    box-shadow: 0 15px 50px rgba(128, 64, 184, 0.2);
 }
 
 .card-header {
@@ -450,37 +482,54 @@ canvas {
     justify-content: space-between;
 }
 
+#solo-step-2,
+#local-step-2 {
+    justify-content: flex-end;
+}
+
 /* Card specific setup adjustments */
 .mode-card .setup-row {
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    gap: 10px;
-}
-
-.mode-card .setup-row label {
-    font-size: 14px;
-    color: #a0aec0;
-    font-weight: 600;
-    text-align: left;
-    min-width: unset;
+    margin-bottom: 8px;
 }
 
 .mode-card .setup-row select {
-    background: rgba(10, 14, 23, 0.8);
+    background: rgba(10, 14, 23, 0.7);
     color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 8px 12px;
-    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px 16px;
+    border-radius: 10px;
     outline: none;
     font-family: 'Outfit', sans-serif;
     font-size: 14px;
     cursor: pointer;
-    min-width: 150px;
-    width: 150px;
-    appearance: auto;
+    width: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%233B82F6' stroke-width='3'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M19.5 8.25l-7.5 7.5-7.5-7.5' /%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    background-size: 12px;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
+}
+
+.mode-card .setup-row select:hover {
+    border-color: rgba(59, 130, 246, 0.3);
+    background: rgba(15, 22, 38, 0.85);
+}
+
+.mode-card .setup-row select:focus {
+    border-color: #3B82F6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+}
+
+.mode-card .setup-row select:invalid {
+    color: rgba(255, 255, 255, 0.4);
+}
+
+.mode-card .setup-row select option {
+    color: #fff;
+    background: #141928;
 }
 
 .mode-card .input-field {
@@ -497,7 +546,8 @@ canvas {
     gap: 10px;
 }
 
-.btn-card-next, .btn-card-back {
+.btn-card-next,
+.btn-card-back {
     width: 100% !important;
     margin: 8px 0 0 0 !important;
     justify-content: center !important;
@@ -510,9 +560,8 @@ canvas {
 .track-select-wrapper {
     display: flex;
     flex-direction: column;
-    flex: 1;
     width: 100%;
-    margin-bottom: 10px;
+    margin-bottom: 0;
     overflow: hidden;
 }
 
@@ -528,7 +577,7 @@ canvas {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-height: 180px;
+    max-height: 120px;
     overflow-y: auto;
     width: 100%;
     padding-right: 4px;
@@ -538,14 +587,17 @@ canvas {
 .track-list::-webkit-scrollbar {
     width: 6px;
 }
+
 .track-list::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.02);
     border-radius: 3px;
 }
+
 .track-list::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.15);
     border-radius: 3px;
 }
+
 .track-list::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.25);
 }
@@ -685,6 +737,40 @@ canvas {
     width: 200px;
 }
 
+#card-online .input-field {
+    font-size: 18px;
+    font-weight: 600;
+    width: 100%;
+    padding: 8px 12px;
+    margin: 4px 0;
+}
+
+#card-online .input-code {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    width: 100%;
+    padding: 14px 12px;
+    margin: 4px 0;
+}
+
+#card-online .input-code:not(:placeholder-shown) {
+    color: #8040b8;
+    background: rgba(128, 64, 184, 0.08);
+    border: 2px solid rgba(128, 64, 184, 0.3);
+    box-shadow: 0 0 15px rgba(128, 64, 184, 0.15);
+}
+
+#card-online .input-code:focus {
+    border-color: #8040b8;
+    box-shadow: 0 0 18px rgba(128, 64, 184, 0.35);
+}
+
+#card-online .input-field:focus {
+    border-color: #8040b8;
+    box-shadow: 0 0 15px rgba(128, 64, 184, 0.2);
+}
+
 #lobby-player-list {
     display: flex;
     flex-direction: column;
@@ -728,6 +814,8 @@ canvas {
     align-items: center;
     gap: 8px;
     margin: 10px 0;
+    width: 100%;
+    max-width: 320px;
 }
 
 .lobby-info {
@@ -778,4 +866,126 @@ canvas {
 ::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.15);
     border-radius: 3px;
+}
+
+/* ---- Segmented Control (Caixinhas de Seleção) ---- */
+.select-container-custom {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    margin-bottom: 12px;
+    align-items: flex-start;
+}
+
+.select-label-custom {
+    font-size: 13px;
+    color: #a0aec0;
+    font-weight: 700;
+    margin-bottom: 6px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.selector-group {
+    display: flex;
+    width: 100%;
+    background: rgba(10, 14, 23, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.selector-option {
+    flex: 1;
+    min-width: 60px;
+    background: transparent;
+    border: none;
+    color: #a0aec0;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Outfit', sans-serif;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.selector-option:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.selector-option.active {
+    background: linear-gradient(135deg, #1E40AF, #3B82F6);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
+}
+
+/* ---- Card Specific Active and Accent Highlights ---- */
+
+/* Card Solo (Green Accent) */
+#card-solo .controls-info b {
+    color: #27ae60;
+}
+
+#card-solo .btn-track-card.active {
+    background: rgba(39, 174, 96, 0.2);
+    border-color: #27ae60;
+    box-shadow: 0 0 10px rgba(39, 174, 96, 0.2);
+}
+
+#card-solo .selector-option.active {
+    background: linear-gradient(135deg, #1e8449, #27ae60);
+    box-shadow: 0 2px 10px rgba(39, 174, 96, 0.3);
+}
+
+#card-solo .setup-row select:focus {
+    border-color: #27ae60;
+    box-shadow: 0 0 0 3px rgba(39, 174, 96, 0.25);
+}
+
+/* Card Local (Red Accent) */
+#card-local .controls-info b {
+    color: #dc2626;
+}
+
+#card-local .btn-track-card.active {
+    background: rgba(220, 38, 38, 0.2);
+    border-color: #dc2626;
+    box-shadow: 0 0 10px rgba(220, 38, 38, 0.2);
+}
+
+#card-local .selector-option.active {
+    background: linear-gradient(135deg, #991b1b, #dc2626);
+    box-shadow: 0 2px 10px rgba(220, 38, 38, 0.3);
+}
+
+#card-local .setup-row select:focus {
+    border-color: #dc2626;
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
+}
+
+/* Card Online (Purple Accent) */
+#card-online .controls-info b {
+    color: #8040b8;
+}
+
+#card-online .btn-track-card.active {
+    background: rgba(128, 64, 184, 0.2);
+    border-color: #8040b8;
+    box-shadow: 0 0 10px rgba(128, 64, 184, 0.2);
+}
+
+#card-online .selector-option.active {
+    background: linear-gradient(135deg, #60308a, #8040b8);
+    box-shadow: 0 2px 10px rgba(128, 64, 184, 0.3);
+}
+
+#card-online .setup-row select:focus {
+    border-color: #8040b8;
+    box-shadow: 0 0 0 3px rgba(128, 64, 184, 0.25);
 }

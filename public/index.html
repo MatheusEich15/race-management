@@ -45,22 +45,21 @@
                         <!-- Solo Step 1: Config -->
                         <div class="card-step" id="solo-step-1">
                             <div class="setup-row">
-                                <label>Bots:</label>
                                 <select id="solo-bots">
+                                    <option value="0" selected>0 Bots</option>
                                     <option value="1">1 Bot</option>
                                     <option value="2">2 Bots</option>
                                     <option value="3">3 Bots</option>
                                 </select>
                             </div>
                             <div class="setup-row">
-                                <label>Difficulty:</label>
                                 <select id="solo-diff">
-                                    <option value="facil">🟢 Easy</option>
-                                    <option value="medio" selected>🟠 Medium</option>
-                                    <option value="dificil">🔴 Hard</option>
+                                    <option value="facil">Easy</option>
+                                    <option value="medio" selected>Medium</option>
+                                    <option value="dificil">Hard</option>
                                 </select>
                             </div>
-                            <button class="btn btn-card-next" id="btn-solo-next">CHOOSE TRACK →</button>
+                            <button class="btn btn-success btn-card-next" id="btn-solo-next">CHOOSE TRACK</button>
                         </div>
 
                         <!-- Solo Step 2: Track Select -->
@@ -83,13 +82,17 @@
                         
                         <div class="controls-info mini-controls">
                             <strong>Controls:</strong><br>
-                            P1: <img src="./assets/icons/navigation.png"> + SHIFT | P2: <img src="./assets/icons/wasd.png"> + Q
+                            <div id="comands">
+                                <img src="./assets/icons/navigation.png">
+                                <p id="p">+ <b>SHIFT</b> &nbsp;|&nbsp;</p>
+                                <img src="./assets/icons/wasd.png">
+                                <p id="p">+ <b>Q</b></p>
+                            </div>
                         </div>
 
                         <!-- Local Step 1: Config -->
                         <div class="card-step" id="local-step-1">
                             <div class="setup-row">
-                                <label>Extra Bots:</label>
                                 <select id="local-bots">
                                     <option value="0" selected>None</option>
                                     <option value="1">1 Bot</option>
@@ -97,14 +100,13 @@
                                 </select>
                             </div>
                             <div class="setup-row">
-                                <label>Difficulty:</label>
                                 <select id="local-diff">
-                                    <option value="facil">🟢 Easy</option>
-                                    <option value="medio" selected>🟠 Medium</option>
-                                    <option value="dificil">🔴 Hard</option>
+                                    <option value="facil">Easy</option>
+                                    <option value="medio" selected>Medium</option>
+                                    <option value="dificil">Hard</option>
                                 </select>
                             </div>
-                            <button class="btn btn-card-next" id="btn-local-next">CHOOSE TRACK →</button>
+                            <button class="btn btn-danger btn-card-next" id="btn-local-next">CHOOSE TRACK</button>
                         </div>
 
                         <!-- Local Step 2: Track Select -->
@@ -113,7 +115,7 @@
                                 <label class="setup-label">Select Track:</label>
                                 <div class="track-list" id="local-track-list"></div>
                             </div>
-                            <button class="btn btn-success btn-card-next" id="btn-local-start">🏁 START LOCAL</button>
+                            <button class="btn btn-danger btn-card-next" id="btn-local-start">🏁 START LOCAL</button>
                             <button class="btn btn-secondary btn-card-back" id="btn-local-back">← BACK</button>
                         </div>
                     </div>
@@ -133,19 +135,14 @@
                             </div>
                         </div>
 
-                        <!-- Online Step 1: Option Choose -->
+                        <!-- Online Main Menu -->
                         <div class="card-step" id="online-step-1">
-                            <input class="input-field" id="input-create-name" placeholder="Your name" maxlength="12" value="">
-                            <button class="btn btn-success" id="btn-create">🏠 CREATE ROOM</button>
-                            <button class="btn btn-card-next" id="btn-join-go">🔗 JOIN ROOM</button>
-                        </div>
-
-                        <!-- Online Step 2: Join Code Entry -->
-                        <div class="card-step" id="online-step-2" style="display: none;">
-                            <input class="input-field" id="input-join-name" placeholder="Your name" maxlength="12">
                             <input class="input-field input-code" id="input-room-code" placeholder="ABCD" maxlength="4">
-                            <button class="btn btn-success" id="btn-join-confirm">JOIN ROOM</button>
-                            <button class="btn btn-secondary btn-card-back" id="btn-online-back">← BACK</button>
+                            <input class="input-field" id="input-online-name" placeholder="Your name" maxlength="12" value="">
+                            <div style="width: 100%;">
+                                <button class="btn btn-blue btn-card-next" id="btn-join-confirm">JOIN ROOM</button>
+                                <button class="btn btn-purple btn-card-back" id="btn-create">CREATE ROOM</button>
+                            </div>
                         </div>
                     </div>
 
@@ -197,6 +194,7 @@
 
     <!-- Game Scripts (ES Modules) -->
     <script type="module" src="/js/game.js"></script>
+    <script type="module" src="/js/segmented-picker.js"></script>
 
 </body>
 </html>
