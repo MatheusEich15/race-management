@@ -77,7 +77,7 @@ window.addEventListener('blur', () => {
 });
 
 const P1_KEYS = { up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', nitro: 'Shift' };
-const P2_KEYS = { up: 't', down: 'g', left: 'f', right: 'h', nitro: 'q' };
+const P2_KEYS = { up: 'w', down: 's', left: 'a', right: 'd', nitro: 'q' };
 
 function getLocalInput(keyMap) {
     return {
@@ -236,21 +236,13 @@ function initMenus() {
         startLocalGame();
     });
 
-    // Online Card Step Navigation
+    // Online Card Navigation
     document.getElementById('btn-create').addEventListener('click', startCreateRoom);
-    document.getElementById('btn-join-go').addEventListener('click', () => {
-        document.getElementById('online-step-1').style.display = 'none';
-        document.getElementById('online-step-2').style.display = 'flex';
-    });
-    document.getElementById('btn-online-back').addEventListener('click', () => {
-        document.getElementById('online-step-2').style.display = 'none';
-        document.getElementById('online-step-1').style.display = 'flex';
-    });
 
     // Join room confirm
     document.getElementById('btn-join-confirm').addEventListener('click', () => {
         const code = document.getElementById('input-room-code').value.trim().toUpperCase();
-        const name = document.getElementById('input-join-name').value.trim() || 'Player';
+        const name = document.getElementById('input-online-name').value.trim() || 'Player';
         if (code.length !== 4) {
             showToast('Room code must be 4 letters!');
             return;
@@ -289,7 +281,7 @@ function initMenus() {
 // ---- Online Functions ----
 
 async function startCreateRoom() {
-    const name = document.getElementById('input-create-name')?.value?.trim() || 'Host';
+    const name = document.getElementById('input-online-name')?.value?.trim() || 'Host';
     try {
         if (!net.connected) await net.connect();
         net.createRoom(name);
@@ -309,7 +301,7 @@ async function joinRoom(code, name) {
 
 function setupNetworkCallbacks() {
     net.onRoomCreated = (code, slot) => {
-        lobbyPlayers = [{ name: document.getElementById('input-create-name')?.value?.trim() || 'Host', slot, isHost: true }];
+        lobbyPlayers = [{ name: document.getElementById('input-online-name')?.value?.trim() || 'Host', slot, isHost: true }];
         setRoomCode(code);
         updateLobbyPlayers(lobbyPlayers);
         showSection('lobby');

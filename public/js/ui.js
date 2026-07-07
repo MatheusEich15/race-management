@@ -29,14 +29,12 @@ export function showMenu() {
     const local1 = document.getElementById('local-step-1');
     const local2 = document.getElementById('local-step-2');
     const online1 = document.getElementById('online-step-1');
-    const online2 = document.getElementById('online-step-2');
 
     if (solo1) solo1.style.display = 'flex';
     if (solo2) solo2.style.display = 'none';
     if (local1) local1.style.display = 'flex';
     if (local2) local2.style.display = 'none';
     if (online1) online1.style.display = 'flex';
-    if (online2) online2.style.display = 'none';
 
     showSection('main-menu');
 }
@@ -88,7 +86,7 @@ export function buildHUD(cars, opts) {
         } else if (car.isRemote) {
             label = `ONLINE ${PLAYER_NAMES[car.slot]}`;
         } else {
-            const controlHint = car.slot === 0 ? '(ARROWS + SHIFT)' : '(TFGH + Q)';
+            const controlHint = car.slot === 0 ? '(ARROWS + SHIFT)' : '(WASD + Q)';
             label = `PLAYER ${car.slot + 1} ${opts.mode !== 'online' ? controlHint : ''}`;
         }
 
