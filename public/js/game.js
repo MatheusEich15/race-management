@@ -10,8 +10,10 @@ import { NetworkManager } from './network.js';
 import {
     showSection, showMenu, hideMenu, setFlow, getFlow,
     buildHUD, updateHUD, buildTrackGrid,
-    updateLobbyPlayers, setRoomCode, showToast, returnToLobby
+    updateLobbyPlayers, setRoomCode, showToast, returnToLobby,
+    showOnlineStep
 } from './ui.js';
+
 
 // ---- Constants ----
 const TOTAL_LAPS = 3;
@@ -259,21 +261,42 @@ function initMenus() {
         showMenu();
     });
 
-    // Lobby track selector
-    const lobbyTrack = document.getElementById('lobby-track');
-    if (lobbyTrack) {
-        TRACKS.forEach((t, i) => {
-            const opt = document.createElement('option');
-            opt.value = i;
-            opt.textContent = t.name;
-            lobbyTrack.appendChild(opt);
+    // Host Customize flow — Step 1 (settings → track)
+    document.getElementById('btn-lobby-customize').addEventListener('click', () => {
+        showOnlineStep('online-step-customize-1');
+    });
+    document.getElementById('btn-customize-next').addEventListener('click', () => {
+        showOnlineStep('online-step-customize-2');
+    });
+
+    // Host Customize flow — Step 2 (track → confirm back to lobby)
+    document.getElementById('btn-customize-confirm').addEventListener('click', () => {
+        // Send configuration to server
+        const trackIdx = state.onlineLobbyTrackIdx || 0;
+        net.setConfig({
+            trackIdx,
+            botCount: parseInt(document.getElementById('lobby-bots')?.value || 0),
+            botDifficulty: document.getElementById('lobby-diff')?.value || 'medio',
         });
-        lobbyTrack.addEventListener('change', () => {
-            net.setConfig({
-                trackIdx: parseInt(lobbyTrack.value),
-                botCount: parseInt(document.getElementById('lobby-bots')?.value || 0),
-                botDifficulty: document.getElementById('lobby-diff')?.value || 'medio',
+        showOnlineStep('online-step-lobby');
+    });
+
+    // Build lobby track list for host
+    const lobbyTrackList = document.getElementById('lobby-track-list');
+    if (lobbyTrackList) {
+        state.onlineLobbyTrackIdx = 0;
+        lobbyTrackList.innerHTML = '';
+        TRACKS.forEach((track, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'btn-track-card' + (i === 0 ? ' active' : '');
+            btn.textContent = `${i + 1}. ${track.name}`;
+            btn.addEventListener('click', () => {
+                state.onlineLobbyTrackIdx = i;
+                lobbyTrackList.querySelectorAll('.btn-track-card').forEach((b, idx) => {
+                    b.classList.toggle('active', idx === i);
+                });
             });
+            lobbyTrackList.appendChild(btn);
         });
     }
 }
@@ -304,25 +327,32 @@ function setupNetworkCallbacks() {
         lobbyPlayers = [{ name: document.getElementById('input-online-name')?.value?.trim() || 'Host', slot, isHost: true }];
         setRoomCode(code);
         updateLobbyPlayers(lobbyPlayers);
-        showSection('lobby');
 
-        const hostControls = document.getElementById('lobby-host-controls');
-        if (hostControls) hostControls.style.display = 'flex';
+        // Switch card to lobby step (host view)
+        showOnlineStep('online-step-lobby');
+        const btnCustomize = document.getElementById('btn-lobby-customize');
         const btnStart = document.getElementById('btn-lobby-start');
-        if (btnStart) btnStart.style.display = 'block';
+        const waitingInfo = document.getElementById('lobby-waiting-info');
+        if (btnCustomize) btnCustomize.style.display = 'flex';
+        if (btnStart) btnStart.style.display = 'flex';
+        if (waitingInfo) waitingInfo.style.display = 'none';
     };
 
     net.onRoomJoined = (code, slot, players) => {
         lobbyPlayers = players;
         setRoomCode(code);
         updateLobbyPlayers(lobbyPlayers);
-        showSection('lobby');
 
-        const hostControls = document.getElementById('lobby-host-controls');
-        if (hostControls) hostControls.style.display = 'none';
+        // Switch card to lobby step (guest view)
+        showOnlineStep('online-step-lobby');
+        const btnCustomize = document.getElementById('btn-lobby-customize');
         const btnStart = document.getElementById('btn-lobby-start');
+        const waitingInfo = document.getElementById('lobby-waiting-info');
+        if (btnCustomize) btnCustomize.style.display = 'none';
         if (btnStart) btnStart.style.display = 'none';
+        if (waitingInfo) waitingInfo.style.display = 'block';
     };
+
 
     net.onPlayerJoined = (name, slot) => {
         lobbyPlayers.push({ name, slot, isHost: false });
@@ -338,8 +368,16 @@ function setupNetworkCallbacks() {
     };
 
     net.onConfigUpdated = (config) => {
-        const lobbyTrack = document.getElementById('lobby-track');
-        if (lobbyTrack) lobbyTrack.value = config.trackIdx;
+        // Update host's internal track index and highlight active track in the list
+        if (config.trackIdx !== undefined) {
+            state.onlineLobbyTrackIdx = config.trackIdx;
+            const lobbyTrackList = document.getElementById('lobby-track-list');
+            if (lobbyTrackList) {
+                lobbyTrackList.querySelectorAll('.btn-track-card').forEach((b, idx) => {
+                    b.classList.toggle('active', idx === config.trackIdx);
+                });
+            }
+        }
     };
 
     net.onGameStarting = (config) => {

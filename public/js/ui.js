@@ -7,7 +7,7 @@ import { TRACKS, PLAYER_COLORS, PLAYER_NAMES } from './tracks.js';
 // ---- Menu Navigation ----
 
 const ALL_SECTIONS = [
-    'main-menu', 'lobby'
+    'main-menu'
 ];
 
 let currentFlow = null; // 'solo' | 'local' | 'online'
@@ -19,6 +19,29 @@ export function showSection(id) {
     });
 }
 
+/**
+ * Show a specific step inside the online card.
+ * id can be: 'online-step-1' | 'online-step-lobby' | 'online-step-customize-1' | 'online-step-customize-2'
+ */
+export function showOnlineStep(id) {
+    const steps = [
+        'online-step-1',
+        'online-step-lobby',
+        'online-step-customize-1',
+        'online-step-customize-2',
+    ];
+    steps.forEach(s => {
+        const el = document.getElementById(s);
+        if (el) el.style.display = (s === id) ? 'flex' : 'none';
+    });
+
+    // Hide the controls hint when leaving step-1 (customize steps have their own inline controls)
+    const hint = document.getElementById('online-controls-hint');
+    if (hint) {
+        hint.style.display = (id === 'online-step-1') ? '' : 'none';
+    }
+}
+
 export function showMenu() {
     document.getElementById('menu').style.display = 'flex';
     document.getElementById('hud').style.visibility = 'hidden';
@@ -28,13 +51,14 @@ export function showMenu() {
     const solo2 = document.getElementById('solo-step-2');
     const local1 = document.getElementById('local-step-1');
     const local2 = document.getElementById('local-step-2');
-    const online1 = document.getElementById('online-step-1');
 
     if (solo1) solo1.style.display = 'flex';
     if (solo2) solo2.style.display = 'none';
     if (local1) local1.style.display = 'flex';
     if (local2) local2.style.display = 'none';
-    if (online1) online1.style.display = 'flex';
+
+    // Reset online card to step 1
+    showOnlineStep('online-step-1');
 
     showSection('main-menu');
 }
@@ -130,9 +154,9 @@ export function updateLobbyPlayers(players) {
     players.forEach(p => {
         const li = document.createElement('div');
         li.className = 'lobby-player';
-        li.style.borderLeftColor = PLAYER_COLORS[p.slot] || '#fff';
+        li.style.borderLeftColor = PLAYER_COLORS[p.slot] || '#8040b8';
         li.innerHTML = `
-            <span class="lobby-dot" style="background: ${PLAYER_COLORS[p.slot]}"></span>
+            <span class="lobby-dot" style="background: ${PLAYER_COLORS[p.slot]}; color: ${PLAYER_COLORS[p.slot]};"></span>
             <span>${p.name}</span>
             ${p.isHost ? '<span class="lobby-host-badge">HOST</span>' : ''}
         `;
@@ -147,20 +171,26 @@ export function setRoomCode(code) {
 
 /**
  * Return to the lobby view after a race ends (online mode).
- * Shows the menu with the lobby section visible and HUD hidden.
- * Does NOT disconnect from WebSocket.
+ * Shows the online card's lobby step. Does NOT disconnect from WebSocket.
  * @param {boolean} isHost - Whether this player is the host
  */
 export function returnToLobby(isHost) {
     document.getElementById('menu').style.display = 'flex';
     document.getElementById('hud').style.visibility = 'hidden';
-    showSection('lobby');
 
-    // Show/hide host controls
-    const hostControls = document.getElementById('lobby-host-controls');
-    if (hostControls) hostControls.style.display = isHost ? 'flex' : 'none';
+    // Switch to lobby step inside the card
+    showOnlineStep('online-step-lobby');
+
+    // Show/hide host-only buttons
+    const btnCustomize = document.getElementById('btn-lobby-customize');
     const btnStart = document.getElementById('btn-lobby-start');
-    if (btnStart) btnStart.style.display = isHost ? 'block' : 'none';
+    const waitingInfo = document.getElementById('lobby-waiting-info');
+
+    if (btnCustomize) btnCustomize.style.display = isHost ? 'flex' : 'none';
+    if (btnStart) btnStart.style.display = isHost ? 'flex' : 'none';
+    if (waitingInfo) waitingInfo.style.display = isHost ? 'none' : 'block';
+
+    showSection('main-menu');
 }
 
 // ---- Track Grid Builder ----
