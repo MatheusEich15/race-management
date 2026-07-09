@@ -226,6 +226,7 @@ canvas {
 
 .controls-info strong {
     color: #bdc3c7;
+    font-weight: 400;
 }
 
 .controls-info b {
@@ -577,7 +578,7 @@ canvas {
 .setup-label {
     font-size: 14px;
     color: #a0aec0;
-    font-weight: 600;
+    font-weight: 400;
     margin-bottom: 8px;
     text-align: left;
 }
@@ -587,6 +588,16 @@ canvas {
     flex-direction: column;
     gap: 6px;
     max-height: 116px;
+    overflow-y: auto;
+    width: 100%;
+    padding-right: 4px;
+}
+
+.track-list-online {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 170px;
     overflow-y: auto;
     width: 100%;
     padding-right: 4px;
@@ -750,9 +761,9 @@ canvas {
 
 /* "PLAYERS IN LOBBY" — same as .setup-label */
 .lobby-players-title {
-    font-size: 14px;
+    font-size: 12px;
     color: #a0aec0;
-    font-weight: 600;
+    font-weight: 400;
     margin-bottom: 8px;
     text-align: left;
 }
@@ -826,7 +837,7 @@ canvas {
 /* Waiting info */
 .lobby-waiting-info {
     font-size: 11px;
-    color: rgba(128, 64, 184, 0.6);
+    color: #a0aec0;
     text-align: center;
     margin-bottom: 8px;
     letter-spacing: 0.5px;
@@ -955,11 +966,7 @@ canvas {
     gap: 2.125rem;
 }
 
-/* Customize steps: align top like other card steps */
-#online-step-customize-1,
-#online-step-customize-2 {
-    justify-content: flex-start !important;
-}
+/* Customize steps: align top like other card steps - removed overrides to match solo/local */
 
 /* Lobby actions: same gap as btn-card-next/back margin */
 .lobby-actions {
@@ -972,10 +979,7 @@ canvas {
 /* Customize step header — removed, replaced by controls-info */
 
 
-/* Track list inside customize step 2 - purple accent */
-#online-step-customize-2 .track-list {
-    max-height: 180px;
-}
+/* Track list inside customize step 2 - purple accent - inherits general max-height */
 
 #online-step-customize-2 .btn-track-card {
     border-color: rgba(128, 64, 184, 0.15);
@@ -1155,9 +1159,9 @@ canvas {
 }
 
 .select-label-custom {
-    font-size: 13px;
+    font-size: 12px;
     color: #a0aec0;
-    font-weight: 700;
+    font-weight: 400;
     margin-bottom: 6px;
     letter-spacing: 0.5px;
     text-transform: uppercase;

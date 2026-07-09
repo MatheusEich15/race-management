@@ -35,10 +35,10 @@ export function showOnlineStep(id) {
         if (el) el.style.display = (s === id) ? 'flex' : 'none';
     });
 
-    // Hide the controls hint when leaving step-1 (customize steps have their own inline controls)
+    // Hide the controls hint only when in the lobby (customize steps will reuse the main controls hint)
     const hint = document.getElementById('online-controls-hint');
     if (hint) {
-        hint.style.display = (id === 'online-step-1') ? '' : 'none';
+        hint.style.display = (id === 'online-step-lobby') ? 'none' : '';
     }
 }
 
