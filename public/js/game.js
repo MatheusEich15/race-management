@@ -49,10 +49,11 @@ let state = {
     countdown: 3,
     gameStarted: false,
     animFrameId: null,
+    countdownIntervalId: null, // stored to allow cancellation
     running: false,
     botDifficulty: 'medio',
-    botCount: 1,
-    soloBotCount: 1,
+    botCount: 0,
+    soloBotCount: 0,        // matches HTML default: None (0 bots)
     soloBotDifficulty: 'medio',
     soloTrackIdx: 0,
     localBotCount: 0,
@@ -436,12 +437,19 @@ function setupNetworkCallbacks() {
 function selectTrack(idx) {
     state.trackIdx = idx;
     const flow = getFlow();
-    if (flow === 'solo') startSoloGame();
-    else if (flow === 'local') startLocalGame();
+    if (flow === 'solo') {
+        state.soloTrackIdx = idx;
+        startSoloGame();
+    } else if (flow === 'local') {
+        state.localTrackIdx = idx;
+        startLocalGame();
+    }
 }
 
 function startSoloGame() {
     state.mode = 'solo';
+    // Use the track selected in the solo card
+    state.trackIdx = state.soloTrackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
 
@@ -456,8 +464,9 @@ function startSoloGame() {
     player.reset(track.startPositions[0].x, track.startPositions[0].y, track.startAngle);
     state.cars.push(player);
 
-    const botCount = Math.min(state.botCount, 3);
-    const config = BOT_CONFIGS[state.botDifficulty] || BOT_CONFIGS.medio;
+    // Use bot count and difficulty from the solo card selects
+    const botCount = Math.min(state.soloBotCount, 3);
+    const config = BOT_CONFIGS[state.soloBotDifficulty] || BOT_CONFIGS.medio;
 
     for (let i = 0; i < botCount; i++) {
         const slot = i + 1;
@@ -469,7 +478,7 @@ function startSoloGame() {
         state.cars.push(bot);
         state.botSlots.push(slot);
 
-        const ai = new BotAI(state.botDifficulty);
+        const ai = new BotAI(state.soloBotDifficulty);
         ai.findNearestNode(pos.x, pos.y, state.cachedSegments);
         state.botAIs.push(ai);
     }
@@ -480,6 +489,8 @@ function startSoloGame() {
 
 function startLocalGame() {
     state.mode = 'local';
+    // Use the track selected in the local card
+    state.trackIdx = state.localTrackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
 
@@ -499,8 +510,9 @@ function startLocalGame() {
     p2.reset(track.startPositions[1].x, track.startPositions[1].y, track.startAngle);
     state.cars.push(p2);
 
-    const botCount = Math.min(state.botCount, 2);
-    const config = BOT_CONFIGS[state.botDifficulty] || BOT_CONFIGS.medio;
+    // Use bot count and difficulty from the local card selects
+    const botCount = Math.min(state.localBotCount, 2);
+    const config = BOT_CONFIGS[state.localBotDifficulty] || BOT_CONFIGS.medio;
 
     for (let i = 0; i < botCount; i++) {
         const slot = i + 2;
@@ -512,7 +524,7 @@ function startLocalGame() {
         state.cars.push(bot);
         state.botSlots.push(slot);
 
-        const ai = new BotAI(state.botDifficulty);
+        const ai = new BotAI(state.localBotDifficulty);
         ai.findNearestNode(pos.x, pos.y, state.cachedSegments);
         state.botAIs.push(ai);
     }
@@ -620,13 +632,25 @@ function startRace() {
  * or when race_go is received for online mode.
  */
 function beginCountdown() {
+    // Cancel any existing countdown first
+    if (state.countdownIntervalId) {
+        clearInterval(state.countdownIntervalId);
+        state.countdownIntervalId = null;
+    }
     state.countdown = 3;
-    const countInterval = setInterval(() => {
+    state.countdownIntervalId = setInterval(() => {
+        if (!state.running) {
+            // Game stopped — cancel stale countdown
+            clearInterval(state.countdownIntervalId);
+            state.countdownIntervalId = null;
+            return;
+        }
         state.countdown--;
         if (state.countdown < 0) {
             state.gameStarted = true;
             state.raceStartTime = performance.now();
-            clearInterval(countInterval);
+            clearInterval(state.countdownIntervalId);
+            state.countdownIntervalId = null;
         }
     }, 1000);
 }
@@ -636,6 +660,11 @@ function beginCountdown() {
  */
 function returnToMenuScreen() {
     state.running = false;
+    // Cancel countdown interval if still running
+    if (state.countdownIntervalId) {
+        clearInterval(state.countdownIntervalId);
+        state.countdownIntervalId = null;
+    }
     if (state.animFrameId) {
         cancelAnimationFrame(state.animFrameId);
         state.animFrameId = null;
