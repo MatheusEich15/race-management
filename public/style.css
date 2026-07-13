@@ -772,10 +772,19 @@ canvas {
     display: flex;
     flex-direction: column;
     gap: 5px;
-    overflow-y: auto;
     flex: 1;
     min-height: 0;
     padding-right: 3px;
+}
+
+.is-host #lobby-player-list {
+    max-height: 70px;
+    overflow-y: auto;
+}
+
+.is-guest #lobby-player-list {
+    max-height: none;
+    overflow-y: visible;
 }
 
 /* Custom scrollbar for lobby player list */
@@ -831,7 +840,7 @@ canvas {
     font-weight: 900;
     margin-left: auto;
     letter-spacing: 1px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
 }
 
 /* Waiting info */
@@ -847,8 +856,15 @@ canvas {
 }
 
 @keyframes pulse-text {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+
+    50% {
+        opacity: 1;
+    }
 }
 
 

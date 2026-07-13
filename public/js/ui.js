@@ -45,7 +45,7 @@ export function showOnlineStep(id) {
 export function showMenu() {
     document.getElementById('menu').style.display = 'flex';
     document.getElementById('hud').style.visibility = 'hidden';
-    
+
     // Reset cards steps to step 1
     const solo1 = document.getElementById('solo-step-1');
     const solo2 = document.getElementById('solo-step-2');
@@ -179,6 +179,16 @@ export function returnToLobby(isHost) {
     document.getElementById('hud').style.visibility = 'hidden';
 
     // Switch to lobby step inside the card
+    const lobbyEl = document.getElementById('online-step-lobby');
+    if (lobbyEl) {
+        if (isHost) {
+            lobbyEl.classList.add('is-host');
+            lobbyEl.classList.remove('is-guest');
+        } else {
+            lobbyEl.classList.remove('is-host');
+            lobbyEl.classList.add('is-guest');
+        }
+    }
     showOnlineStep('online-step-lobby');
 
     // Show/hide host-only buttons

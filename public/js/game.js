@@ -163,7 +163,7 @@ function getPodiumPositions() {
 function buildCardTrackLists() {
     const soloList = document.getElementById('solo-track-list');
     const localList = document.getElementById('local-track-list');
-    
+
     if (soloList) {
         soloList.innerHTML = '';
         TRACKS.forEach((track, i) => {
@@ -330,6 +330,11 @@ function setupNetworkCallbacks() {
         updateLobbyPlayers(lobbyPlayers);
 
         // Switch card to lobby step (host view)
+        const lobbyEl = document.getElementById('online-step-lobby');
+        if (lobbyEl) {
+            lobbyEl.classList.add('is-host');
+            lobbyEl.classList.remove('is-guest');
+        }
         showOnlineStep('online-step-lobby');
         const btnCustomize = document.getElementById('btn-lobby-customize');
         const btnStart = document.getElementById('btn-lobby-start');
@@ -345,6 +350,11 @@ function setupNetworkCallbacks() {
         updateLobbyPlayers(lobbyPlayers);
 
         // Switch card to lobby step (guest view)
+        const lobbyEl = document.getElementById('online-step-lobby');
+        if (lobbyEl) {
+            lobbyEl.classList.remove('is-host');
+            lobbyEl.classList.add('is-guest');
+        }
         showOnlineStep('online-step-lobby');
         const btnCustomize = document.getElementById('btn-lobby-customize');
         const btnStart = document.getElementById('btn-lobby-start');
