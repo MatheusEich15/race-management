@@ -46,7 +46,7 @@
                         <div class="card-step" id="solo-step-1">
                             <div class="setup-row">
                                 <select id="solo-bots">
-                                    <option value="0" selected>0 Bots</option>
+                                    <option value="0" selected>None</option>
                                     <option value="1">1 Bot</option>
                                     <option value="2">2 Bots</option>
                                     <option value="3">3 Bots</option>
@@ -59,17 +59,17 @@
                                     <option value="dificil">Hard</option>
                                 </select>
                             </div>
-                            <button class="btn btn-success btn-card-next" id="btn-solo-next">CHOOSE TRACK</button>
+                            <button class="btn btn-success btn-card-next" id="btn-solo-next">CONTINUE</button>
                         </div>
 
                         <!-- Solo Step 2: Track Select -->
                         <div class="card-step" id="solo-step-2" style="display: none;">
                             <div class="track-select-wrapper">
-                                <label class="setup-label">Select Track:</label>
+                                <label class="setup-label">TRACK:</label>
                                 <div class="track-list" id="solo-track-list"></div>
                             </div>
-                            <button class="btn btn-success btn-card-next" id="btn-solo-start">🏁 START SOLO</button>
-                            <button class="btn btn-secondary btn-card-back" id="btn-solo-back">← BACK</button>
+                            <button class="btn btn-success btn-card-next" id="btn-solo-start">START</button>
+                            <button class="btn btn-secondary btn-card-back" id="btn-solo-back">BACK</button>
                         </div>
                     </div>
 
@@ -106,28 +106,28 @@
                                     <option value="dificil">Hard</option>
                                 </select>
                             </div>
-                            <button class="btn btn-danger btn-card-next" id="btn-local-next">CHOOSE TRACK</button>
+                            <button class="btn btn-danger btn-card-next" id="btn-local-next">CONTINUE</button>
                         </div>
 
                         <!-- Local Step 2: Track Select -->
                         <div class="card-step" id="local-step-2" style="display: none;">
                             <div class="track-select-wrapper">
-                                <label class="setup-label">Select Track:</label>
+                                <label class="setup-label">TRACK:</label>
                                 <div class="track-list" id="local-track-list"></div>
                             </div>
-                            <button class="btn btn-danger btn-card-next" id="btn-local-start">🏁 START LOCAL</button>
-                            <button class="btn btn-secondary btn-card-back" id="btn-local-back">← BACK</button>
+                            <button class="btn btn-danger btn-card-next" id="btn-local-start">START</button>
+                            <button class="btn btn-secondary btn-card-back" id="btn-local-back">BACK</button>
                         </div>
                     </div>
 
                     <!-- CARD 3: ONLINE MULTIPLAYER -->
                     <div class="mode-card" id="card-online">
-                        <div class="card-header">
+                        <div class="card-header" id="online-card-header">
                             <img src="./assets/icons/online.png" alt="earth globe icon" class="card-icon">
-                            <span class="card-title">ONLINE MODE</span>
+                            <span class="card-title" id="online-card-title">ONLINE MODE</span>
                         </div>
                         
-                        <div class="controls-info mini-controls">
+                        <div class="controls-info mini-controls" id="online-controls-hint">
                             <strong>Controls:</strong><br>
                             <div id="comands">
                                 <img src="./assets/icons/navigation.png" alt="">
@@ -135,55 +135,78 @@
                             </div>
                         </div>
 
-                        <!-- Online Main Menu -->
-                        <div class="card-step" id="online-step-1">
-                            <input class="input-field input-code" id="input-room-code" placeholder="ABCD" maxlength="4">
-                            <input class="input-field" id="input-online-name" placeholder="Your name" maxlength="12" value="">
-                            <div style="width: 100%;">
-                                <button class="btn btn-blue btn-card-next" id="btn-join-confirm">JOIN ROOM</button>
-                                <button class="btn btn-purple btn-card-back" id="btn-create">CREATE ROOM</button>
+                        <!-- Online Step 1: Join / Create -->
+                        <div class="card-step online-join-step" id="online-step-1">
+                            <div>
+                                <input class="input-field input-code" id="input-room-code" placeholder="ABCD" maxlength="4">
+                                <input class="input-field" id="input-online-name" placeholder="Your name" maxlength="12" value="">
                             </div>
+                            <div style="width: 100%;">
+                                <button class="btn btn-blue btn-card-next" id="btn-join-confirm">JOIN</button>
+                                <button class="btn btn-purple btn-card-back" id="btn-create">CREATE</button>
+                            </div>
+                        </div>
+
+                        <!-- Online Step Lobby: Room Lobby -->
+                        <div class="card-step online-lobby-step" id="online-step-lobby" style="display:none;">
+                            <!-- Room Code Badge -->
+                            <div class="lobby-room-badge">
+                                <span class="lobby-room-code" id="display-room-code">----</span>
+                            </div>
+
+                            <!-- Player List -->
+                            <div class="lobby-players-container">
+                                <div class="lobby-players-title">PLAYERS:</div>
+                                <div id="lobby-player-list"></div>
+                            </div>
+
+                            <!-- Waiting info (non-host) -->
+                            <div class="lobby-waiting-info" id="lobby-waiting-info">Waiting for host to start...</div>
+
+                            <!-- Actions -->
+                            <div class="lobby-actions">
+                                <button class="btn btn-online-customize" id="btn-lobby-customize" style="display:none;">CUSTOMIZE</button>
+                                <button class="btn btn-online-start" id="btn-lobby-start" style="display:none;">START</button>
+                                <button class="btn btn-online-leave" id="btn-lobby-leave">LEAVE</button>
+                            </div>
+                        </div>
+
+                        <!-- Online Step Customize 1: Bots & Difficulty (host only) -->
+                        <div class="card-step" id="online-step-customize-1" style="display:none;">
+
+                            <div class="setup-row">
+                                <select id="lobby-bots">
+                                    <option value="0" selected>None</option>
+                                    <option value="1">1 Bot</option>
+                                    <option value="2">2 Bots</option>
+                                    <option value="3">3 Bots</option>
+                                </select>
+                            </div>
+                            <div class="setup-row">
+                                <select id="lobby-diff">
+                                    <option value="facil">Easy</option>
+                                    <option value="medio" selected>Medium</option>
+                                    <option value="dificil">Hard</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-purple btn-card-next" id="btn-customize-next">CONTINUE</button>
+                        </div>
+
+                        <!-- Online Step Customize 2: Track Select (host only) -->
+                        <div class="card-step" id="online-step-customize-2" style="display:none;">
+
+                            <div class="track-select-wrapper">
+                                <label class="setup-label">TRACK:</label>
+                                <div class="track-list-online" id="lobby-track-list"></div>
+                            </div>
+                            <button class="btn btn-purple btn-card-next" id="btn-customize-confirm">CONFIRM</button>
                         </div>
                     </div>
 
                 </div>
             </div>
 
-            <!-- ======== LOBBY ======== -->
-            <div id="lobby" class="submenu">
-                <div class="section-title">ROOM</div>
-                <div class="room-code-display" id="display-room-code">----</div>
-                <div id="lobby-player-list"></div>
 
-                <!-- Host-only controls -->
-                <div id="lobby-host-controls" class="lobby-host-controls" style="display:none;">
-                    <div class="setup-row">
-                        <label>Track:</label>
-                        <select id="lobby-track"></select>
-                    </div>
-                    <div class="setup-row">
-                        <label>Bots:</label>
-                        <select id="lobby-bots">
-                            <option value="0" selected>None</option>
-                            <option value="1">1 Bot</option>
-                            <option value="2">2 Bots</option>
-                            <option value="3">3 Bots</option>
-                        </select>
-                    </div>
-                    <div class="setup-row">
-                        <label>Difficulty:</label>
-                        <select id="lobby-diff">
-                            <option value="facil">Easy</option>
-                            <option value="medio" selected>Medium</option>
-                            <option value="dificil">Hard</option>
-                        </select>
-                    </div>
-                </div>
-
-                <button class="btn btn-success" id="btn-lobby-start" style="display:none;">🏁 START RACE</button>
-                <div class="lobby-info">Waiting for host to start the race...</div>
-                <button class="btn btn-secondary btn-small" id="btn-lobby-leave">LEAVE ROOM</button>
-            </div>
         </div>
 
         <canvas id="gameCanvas" width="1400" height="850"></canvas>
