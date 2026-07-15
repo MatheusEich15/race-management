@@ -3,7 +3,7 @@
 // ============================================================
 
 export const PLAYER_COLORS = ['#00d2d3', '#ff6b6b', '#ffd32a', '#6c5ce7'];
-export const PLAYER_NAMES  = ['CYAN', 'CORAL', 'GOLD', 'PURPLE'];
+export const PLAYER_NAMES = ['CYAN', 'CORAL', 'GOLD', 'PURPLE'];
 
 export const TRACKS = [
     {
@@ -12,25 +12,26 @@ export const TRACKS = [
         grassColors: ['#10ac84', '#0b8463'],
         width: 180,
         startPositions: [
-            { x: 180, y: 390 },
-            { x: 270, y: 390 },
-            { x: 180, y: 490 },
-            { x: 270, y: 490 },
+            { x: 870, y: 760 },
+            { x: 895, y: 670 },
+            { x: 985, y: 760 },
+            { x: 1010, y: 670 },
         ],
-        startAngle: -Math.PI / 2,
+        startAngle: Math.PI,
         finishLine: {
             x1: 130, y1: 435, x2: 320, y2: 435,
-            nx: 0, ny: -1
+            nx: -1, ny: 0
         },
         points: [
-            {x: 200, y: 650}, {x: 200, y: 200}, {x: 450, y: 130},
-            {x: 950, y: 130}, {x: 1200, y: 200}, {x: 1200, y: 650},
-            {x: 950, y: 720}, {x: 450, y: 720}
+            { x: 200, y: 650 }, { x: 200, y: 200 }, { x: 450, y: 130 },
+            { x: 950, y: 130 }, { x: 1200, y: 200 }, { x: 1200, y: 650 },
+            { x: 950, y: 720 }, { x: 450, y: 720 }
         ],
         checkpoints: [
-            {x: 700, y: 130, r: 150},
-            {x: 1200, y: 425, r: 150},
-            {x: 700, y: 720, r: 150}
+            { x: 270, y: 165, r: 150 },
+            { x: 1140, y: 165, r: 150 },
+            { x: 1140, y: 685, r: 150 },
+            { x: 280, y: 685, r: 150 }
         ]
     },
     {
@@ -39,52 +40,57 @@ export const TRACKS = [
         grassColors: ['#0f9b72', '#0a7d5a'],
         width: 170,
         startPositions: [
-            { x: 185, y: 610 },
-            { x: 275, y: 610 },
-            { x: 185, y: 710 },
-            { x: 275, y: 710 },
+            { x: 870, y: 760 },
+            { x: 895, y: 670 },
+            { x: 985, y: 760 },
+            { x: 1010, y: 670 },
         ],
-        startAngle: -Math.PI / 2,
+        startAngle: Math.PI,
         finishLine: {
             x1: 130, y1: 655, x2: 320, y2: 655,
-            nx: 0, ny: -1
+            nx: -1, ny: 0
         },
         points: [
-            {x: 220, y: 720}, {x: 200, y: 180}, {x: 550, y: 140},
-            {x: 650, y: 460}, {x: 900, y: 460}, {x: 1000, y: 160},
-            {x: 1220, y: 220}, {x: 1200, y: 700}, {x: 700, y: 730}
+            { x: 220, y: 720 }, { x: 200, y: 180 }, { x: 550, y: 140 },
+            { x: 650, y: 460 }, { x: 900, y: 460 }, { x: 1000, y: 160 },
+            { x: 1220, y: 220 }, { x: 1200, y: 700 }, { x: 700, y: 730 }
         ],
         checkpoints: [
-            {x: 550, y: 140, r: 140},
-            {x: 775, y: 460, r: 140},
-            {x: 1200, y: 700, r: 140}
+            { x: 250, y: 155, r: 140 },
+            { x: 550, y: 155, r: 140 },
+            { x: 580, y: 550, r: 140 },
+            { x: 970, y: 550, r: 140 },
+            { x: 1000, y: 200, r: 140 },
+            { x: 1155, y: 200, r: 140 },
+            { x: 1200, y: 760, r: 140 }
         ]
     },
     {
         name: "Desert Canyon",
         theme: 'sand',
-        grassColors: ['#c4a35a', '#a08040'], 
+        grassColors: ['#c4a35a', '#a08040'],
         width: 165,
         startPositions: [
-            { x: 875, y: 655 },
-            { x: 875, y: 735 },
-            { x: 975, y: 655 },
-            { x: 975, y: 735 },
+            { x: 595, y: 105 },
+            { x: 570, y: 195 },
+            { x: 480, y: 105 },
+            { x: 455, y: 195 },
         ],
-        startAngle: Math.PI,
+        startAngle: 0,
         finishLine: {
             x1: 920, y1: 610, x2: 920, y2: 780,
-            nx: -1, ny: 0
+            nx: 1, ny: 0
         },
         points: [
-            {x: 700, y: 720}, {x: 300, y: 700}, {x: 180, y: 450},
-            {x: 300, y: 180}, {x: 700, y: 130}, {x: 1100, y: 180},
-            {x: 1250, y: 400}, {x: 1100, y: 680}
+            { x: 700, y: 720 }, { x: 300, y: 700 }, { x: 180, y: 450 },
+            { x: 300, y: 180 }, { x: 700, y: 130 }, { x: 1100, y: 180 },
+            { x: 1250, y: 400 }, { x: 1100, y: 680 }
         ],
         checkpoints: [
-            {x: 300, y: 450, r: 150},
-            {x: 700, y: 130, r: 150},
-            {x: 1250, y: 400, r: 150}
+            { x: 300, y: 650, r: 150 },
+            { x: 300, y: 200, r: 150 },
+            { x: 1125, y: 200, r: 150 },
+            { x: 1125, y: 650, r: 150 }
         ]
     },
     {
@@ -93,24 +99,25 @@ export const TRACKS = [
         grassColors: ['#16a085', '#11806a'],
         width: 175,
         startPositions: [
-            { x: 185, y: 560 },
-            { x: 275, y: 560 },
-            { x: 185, y: 660 },
-            { x: 275, y: 660 },
+            { x: 595, y: 145 },
+            { x: 570, y: 235 },
+            { x: 480, y: 145 },
+            { x: 455, y: 235 },
         ],
-        startAngle: -Math.PI / 2,
+        startAngle: 0,
         finishLine: {
             x1: 130, y1: 600, x2: 320, y2: 600,
-            nx: 0, ny: -1
+            nx: 1, ny: 0
         },
         points: [
-            {x: 220, y: 700}, {x: 200, y: 180}, {x: 1200, y: 180},
-            {x: 1180, y: 520}, {x: 650, y: 500}, {x: 600, y: 700}
+            { x: 220, y: 700 }, { x: 200, y: 180 }, { x: 1200, y: 180 },
+            { x: 1180, y: 520 }, { x: 650, y: 500 }, { x: 600, y: 700 }
         ],
         checkpoints: [
-            {x: 210, y: 180, r: 145},
-            {x: 1200, y: 180, r: 145},
-            {x: 800, y: 510, r: 145}
+            { x: 170, y: 180, r: 145 },
+            { x: 1250, y: 180, r: 145 },
+            { x: 1250, y: 550, r: 145 },
+            { x: 660, y: 550, r: 145 }
         ]
     },
     {
@@ -119,10 +126,10 @@ export const TRACKS = [
         grassColors: ['#d4a76a', '#b8894d'],
         width: 170,
         startPositions: [
-            { x: 700, y: 115 },
-            { x: 700, y: 185 },
-            { x: 595, y: 115 },
-            { x: 595, y: 185 },
+            { x: 565, y: 115 },
+            { x: 540, y: 205 },
+            { x: 450, y: 115 },
+            { x: 425, y: 205 },
         ],
         startAngle: 0,
         finishLine: {
@@ -130,14 +137,16 @@ export const TRACKS = [
             nx: 1, ny: 0
         },
         points: [
-            {x: 250, y: 720}, {x: 150, y: 150}, {x: 1250, y: 150},
-            {x: 1200, y: 720}, {x: 950, y: 500}, {x: 700, y: 700},
-            {x: 450, y: 500}
+            { x: 250, y: 720 }, { x: 150, y: 150 }, { x: 1250, y: 150 },
+            { x: 1200, y: 720 }, { x: 950, y: 500 }, { x: 700, y: 700 },
+            { x: 450, y: 500 }
         ],
         checkpoints: [
-            {x: 1250, y: 150, r: 140},
-            {x: 950, y: 500, r: 140},
-            {x: 150, y: 150, r: 140}
+            { x: 1200, y: 350, r: 140 },
+            { x: 950, y: 550, r: 140 },
+            { x: 700, y: 720, r: 140 },
+            { x: 455, y: 550, r: 140 },
+            { x: 200, y: 350, r: 140 }
         ]
     },
     {
@@ -146,10 +155,10 @@ export const TRACKS = [
         grassColors: ['#1a3c34', '#0f2820'],
         width: 190,
         startPositions: [
-            { x: 700, y: 120 },
-            { x: 700, y: 200 },
-            { x: 595, y: 120 },
-            { x: 595, y: 200 },
+            { x: 485, y: 135 },
+            { x: 460, y: 225 },
+            { x: 370, y: 135 },
+            { x: 345, y: 225 },
         ],
         startAngle: 0,
         finishLine: {
@@ -157,13 +166,14 @@ export const TRACKS = [
             nx: 1, ny: 0
         },
         points: [
-            {x: 700, y: 150}, {x: 1250, y: 200}, {x: 1250, y: 650},
-            {x: 700, y: 720}, {x: 150, y: 650}, {x: 150, y: 200}
+            { x: 700, y: 150 }, { x: 1250, y: 200 }, { x: 1250, y: 650 },
+            { x: 700, y: 720 }, { x: 150, y: 650 }, { x: 150, y: 200 }
         ],
         checkpoints: [
-            {x: 1250, y: 425, r: 160},
-            {x: 700, y: 720, r: 160},
-            {x: 150, y: 425, r: 160}
+            { x: 1150, y: 250, r: 160 },
+            { x: 1150, y: 600, r: 160 },
+            { x: 260, y: 600, r: 160 },
+            { x: 260, y: 250, r: 160 }
         ]
     }
 ];
@@ -281,7 +291,12 @@ export function computeTrackLines() {
         }
 
         // ---- Compute finish line ----
-        const fl = computeLineAt(startCx, startCy);
+        // Offset the finish line computation ahead of the starting grid centroid in the direction of startAngle
+        // You can set `finishLineOffset: value` in the track object to customize this per-track (defaults to 100)
+        const offsetDist = track.finishLineOffset !== undefined ? track.finishLineOffset : 130;
+        const targetCx = startCx + startDx * offsetDist;
+        const targetCy = startCy + startDy * offsetDist;
+        const fl = computeLineAt(targetCx, targetCy);
         if (fl) track.finishLine = fl;
 
         // ---- Compute checkpoint lines ----
