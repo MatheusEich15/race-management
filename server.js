@@ -22,6 +22,16 @@ app.use((req, res, next) => {
     next();
 });
 
+// ---- No-cache headers for JS files during development ----
+app.use((req, res, next) => {
+    if (req.path.endsWith('.js')) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+    }
+    next();
+});
+
 // ---- Serve static files ----
 app.use(express.static(path.join(__dirname, 'public')));
 

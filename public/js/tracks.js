@@ -27,11 +27,13 @@ export const TRACKS = [
             { x: 950, y: 130 }, { x: 1200, y: 200 }, { x: 1200, y: 650 },
             { x: 950, y: 720 }, { x: 450, y: 720 }
         ],
+        // Checkpoints ordered by traversal direction (CCW from finish ~x=805,y=715):
+        // bottom-left → top-left → top-right → bottom-right → finish
         checkpoints: [
+            { x: 280, y: 685, r: 150 },
             { x: 270, y: 165, r: 150 },
             { x: 1140, y: 165, r: 150 },
-            { x: 1140, y: 685, r: 150 },
-            { x: 280, y: 685, r: 150 }
+            { x: 1140, y: 685, r: 150 }
         ]
     },
     {
@@ -86,11 +88,13 @@ export const TRACKS = [
             { x: 300, y: 180 }, { x: 700, y: 130 }, { x: 1100, y: 180 },
             { x: 1250, y: 400 }, { x: 1100, y: 680 }
         ],
+        // Checkpoints ordered by traversal direction (CW from finish ~x=655,y=150):
+        // top-right → bottom-right → bottom-left → top-left → finish
         checkpoints: [
-            { x: 300, y: 650, r: 150 },
-            { x: 300, y: 200, r: 150 },
             { x: 1125, y: 200, r: 150 },
-            { x: 1125, y: 650, r: 150 }
+            { x: 1125, y: 650, r: 150 },
+            { x: 300, y: 650, r: 150 },
+            { x: 300, y: 200, r: 150 }
         ]
     },
     {
@@ -113,11 +117,13 @@ export const TRACKS = [
             { x: 220, y: 700 }, { x: 200, y: 180 }, { x: 1200, y: 180 },
             { x: 1180, y: 520 }, { x: 650, y: 500 }, { x: 600, y: 700 }
         ],
+        // Checkpoints ordered by traversal direction (CW from finish ~x=655,y=190):
+        // top-right → mid-right → center-bottom → top-left → finish
         checkpoints: [
-            { x: 170, y: 180, r: 145 },
-            { x: 1250, y: 180, r: 145 },
+            { x: 1250, y: 200, r: 145 },
             { x: 1250, y: 550, r: 145 },
-            { x: 660, y: 550, r: 145 }
+            { x: 660, y: 550, r: 145 },
+            { x: 170, y: 200, r: 145 }
         ]
     },
     {
