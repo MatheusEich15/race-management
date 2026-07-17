@@ -234,21 +234,21 @@ canvas {
     font-weight: 700;
 }
 
-#comands {
+.comands {
     display: flex;
     justify-content: center;
     gap: 0.18rem;
 }
 
-#comands p {
+.comands p {
     margin-top: 0.55rem;
 }
 
-#comands #p {
+.comands .cmd-p {
     margin-top: 0.75rem;
 }
 
-#comands img {
+.comands img {
     object-fit: contain;
 }
 

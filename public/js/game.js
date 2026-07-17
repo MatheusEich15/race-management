@@ -284,10 +284,12 @@ function initMenus() {
     document.getElementById('btn-customize-confirm').addEventListener('click', () => {
         // Send configuration to server
         const trackIdx = state.onlineLobbyTrackIdx || 0;
+        const lobbyBotsVal = document.getElementById('lobby-bots')?.value;
+        const lobbyDiffVal = document.getElementById('lobby-diff')?.value;
         net.setConfig({
             trackIdx,
-            botCount: parseInt(document.getElementById('lobby-bots')?.value || 0),
-            botDifficulty: document.getElementById('lobby-diff')?.value || 'medio',
+            botCount: parseInt(lobbyBotsVal) || 0,
+            botDifficulty: lobbyDiffVal || 'medio',
         });
         showOnlineStep('online-step-lobby');
     });
@@ -317,7 +319,7 @@ function initMenus() {
 async function startCreateRoom() {
     const name = document.getElementById('input-online-name')?.value?.trim() || 'Host';
     try {
-        if (!net.connected) await net.connect();
+        if (!net.isConnected) await net.connect();
         net.createRoom(name);
     } catch (e) {
         showToast('Connection error: ' + e.message);
@@ -326,7 +328,7 @@ async function startCreateRoom() {
 
 async function joinRoom(code, name) {
     try {
-        if (!net.connected) await net.connect();
+        if (!net.isConnected) await net.connect();
         net.joinRoom(code, name);
     } catch (e) {
         showToast('Connection error: ' + e.message);
@@ -468,6 +470,12 @@ function selectTrack(idx) {
 
 function startSoloGame() {
     state.mode = 'solo';
+    // Read current select values directly (do not rely solely on change events)
+    const soloBotsEl = document.getElementById('solo-bots');
+    const soloDiffEl = document.getElementById('solo-diff');
+    if (soloBotsEl) state.soloBotCount = parseInt(soloBotsEl.value) || 0;
+    if (soloDiffEl) state.soloBotDifficulty = soloDiffEl.value || 'medio';
+
     // Use the track selected in the solo card
     state.trackIdx = state.soloTrackIdx;
     const track = TRACKS[state.trackIdx];
@@ -509,11 +517,16 @@ function startSoloGame() {
 
 function startLocalGame() {
     state.mode = 'local';
+    // Read current select values directly (do not rely solely on change events)
+    const localBotsEl = document.getElementById('local-bots');
+    const localDiffEl = document.getElementById('local-diff');
+    if (localBotsEl) state.localBotCount = parseInt(localBotsEl.value) || 0;
+    if (localDiffEl) state.localBotDifficulty = localDiffEl.value || 'medio';
+
     // Use the track selected in the local card
     state.trackIdx = state.localTrackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
-    state.trackCurbs = precomputeTrackCurbs(track, state.cachedSegments);
 
     state.cars = [];
     state.botAIs = [];
@@ -561,7 +574,6 @@ function setupOnlineGame(config) {
     state.trackIdx = config.trackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
-    state.trackCurbs = precomputeTrackCurbs(track, state.cachedSegments);
 
     state.cars = [];
     state.botAIs = [];
@@ -634,6 +646,7 @@ function startRace() {
     state.countdown = 4; // will be overwritten by beginCountdown
     state.gameStarted = false;
     state.running = true;
+    state.waitingForGo = false; // Reset so solo/local games don't show "GET READY..."
 
     buildHUD(state.cars, {
         totalLaps: TOTAL_LAPS,
@@ -682,6 +695,7 @@ function beginCountdown() {
  */
 function returnToMenuScreen() {
     state.running = false;
+    state.waitingForGo = false; // Reset to false to avoid screen freeze in subsequent runs
     // Cancel countdown interval if still running
     if (state.countdownIntervalId) {
         clearInterval(state.countdownIntervalId);
@@ -1356,8 +1370,8 @@ function drawParticles() {
         const p = state.particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.alpha -= p.decay !== undefined ? p.decay : 0.02;
-        p.size += p.growth !== undefined ? p.growth : 0.15;
+        p.alpha -= 0.02;
+        p.size += 0.15;
 
         if (p.alpha <= 0) {
             state.particles.splice(i, 1);
@@ -1366,11 +1380,6 @@ function drawParticles() {
 
         if (p.color === 'spark') {
             ctx.fillStyle = `rgba(255, 200, 50, ${p.alpha})`;
-        } else if (p.color === 'blue-spark') {
-            ctx.fillStyle = `rgba(0, 210, 255, ${p.alpha})`;
-        } else if (p.color === 'tire-fire') {
-            // Intense yellow/orange fire that shifts colors as it fades
-            ctx.fillStyle = `rgba(255, ${Math.floor(p.alpha * 140 + 60)}, 10, ${p.alpha})`;
         } else {
             ctx.fillStyle = `rgba(180, 180, 180, ${p.alpha})`;
         }

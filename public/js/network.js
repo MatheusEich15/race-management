@@ -28,6 +28,13 @@ export class NetworkManager {
     }
 
     /**
+     * Returns true only if the WebSocket is actually open.
+     */
+    get isConnected() {
+        return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+    }
+
+    /**
      * Connect to the WebSocket server.
      * Uses SERVER_URL from config.js if set, otherwise auto-detects from page host.
      */
