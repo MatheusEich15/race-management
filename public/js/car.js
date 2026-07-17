@@ -84,20 +84,6 @@ export class DriftCar {
             this.speed += this.accel * 2.5;
             this.nitro -= 0.7;
             if (this.nitro < 0) this.nitro = 0;
-
-            // Spawn exhaust/flame particles on the track (medium-sized blue tail sparks)
-            if (Math.random() > 0.20) {
-                particles.push({
-                    x: this.x - Math.cos(this.angle) * 22 + (Math.random() - 0.5) * 3,
-                    y: this.y - Math.sin(this.angle) * 22 + (Math.random() - 0.5) * 3,
-                    vx: -this.vx * 0.15 + (Math.random() - 0.5) * 0.6,
-                    vy: -this.vy * 0.15 + (Math.random() - 0.5) * 0.6,
-                    size: Math.random() * 2.0 + 1.2,
-                    alpha: 0.9,
-                    decay: 0.06, // fades fast
-                    color: 'blue-spark'
-                });
-            }
         } else if (this.nitro < 100 && this.speed > 0.5) {
             // Only regen nitro while moving
             this.nitro += 0.08;
@@ -148,27 +134,14 @@ export class DriftCar {
 
             // Standard drift smoke
             particles.push({
-                x: this.x - Math.cos(this.angle) * 12,
-                y: this.y - Math.sin(this.angle) * 12,
+                x: this.x - Math.cos(this.angle) * 10,
+                y: this.y - Math.sin(this.angle) * 10,
                 vx: (Math.random() - 0.5) * 1,
                 vy: (Math.random() - 0.5) * 1,
                 size: Math.random() * 5 + 3,
                 alpha: 0.5,
                 color: 'smoke'
             });
-
-            // Spark particles when drifting aggressively (driftIntensity > 4)
-            if (driftIntensity > 4.2 && Math.random() > 0.35) {
-                particles.push({
-                    x: this.x - Math.cos(this.angle) * 15 + (Math.random() - 0.5) * 8,
-                    y: this.y - Math.sin(this.angle) * 15 + (Math.random() - 0.5) * 8,
-                    vx: -this.vx * 0.2 + (Math.random() - 0.5) * 1.5,
-                    vy: -this.vy * 0.2 + (Math.random() - 0.5) * 1.5,
-                    size: Math.random() * 2 + 1,
-                    alpha: 0.85,
-                    color: 'spark'
-                });
-            }
 
 
         }
@@ -222,30 +195,12 @@ export class DriftCar {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle + Math.PI / 2);
 
-        // Blue nitro flames from 2 exhausts (draw behind car) - moderately sized
-        if (this.isBoosting) {
-            const flameLen = Math.random() * 4.5 + 3.0; // moderately sized
-            const drawFlame = (ex) => {
-                // Outer blue flame
-                ctx.fillStyle = 'rgba(0, 180, 255, 0.85)';
-                ctx.beginPath();
-                ctx.moveTo(ex - 1.2, this.height / 2 - 2);
-                ctx.lineTo(ex, this.height / 2 + flameLen);
-                ctx.lineTo(ex + 1.2, this.height / 2 - 2);
-                ctx.closePath();
-                ctx.fill();
-
-                // Inner white-hot core
-                ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
-                ctx.beginPath();
-                ctx.moveTo(ex - 0.6, this.height / 2 - 2);
-                ctx.lineTo(ex, this.height / 2 + flameLen * 0.5);
-                ctx.lineTo(ex + 0.6, this.height / 2 - 2);
-                ctx.closePath();
-                ctx.fill();
-            };
-            drawFlame(-3.5);
-            drawFlame(2.5);
+        // Nitro flames
+        if (this.isBoosting && Math.random() > 0.3) {
+            ctx.fillStyle = '#f39c12';
+            ctx.fillRect(-4, this.height / 2, 3, Math.random() * 12 + 5);
+            ctx.fillStyle = '#ff3f34';
+            ctx.fillRect(1, this.height / 2, 3, Math.random() * 12 + 5);
         }
 
         this.renderCarBody(ctx, name);
