@@ -67,6 +67,16 @@ const keys = {};
 window.addEventListener('keydown', e => {
     const tag = e.target.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+    
+    // Toggle headlights for local cars when 'H' is pressed
+    if (e.key.toLowerCase() === 'h') {
+        state.cars.forEach(car => {
+            if (car.isLocal) {
+                car.showHeadlights = !car.showHeadlights;
+            }
+        });
+    }
+
     keys[e.key] = true;
     keys[e.key.toLowerCase()] = true;
     e.preventDefault();
@@ -503,6 +513,7 @@ function startLocalGame() {
     state.trackIdx = state.localTrackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
+    state.trackCurbs = precomputeTrackCurbs(track, state.cachedSegments);
 
     state.cars = [];
     state.botAIs = [];
@@ -550,6 +561,7 @@ function setupOnlineGame(config) {
     state.trackIdx = config.trackIdx;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
+    state.trackCurbs = precomputeTrackCurbs(track, state.cachedSegments);
 
     state.cars = [];
     state.botAIs = [];
@@ -827,14 +839,15 @@ function gameLoop() {
 
     // Draw cars
     state.cars.forEach(car => {
+        const carName = getCarName(car);
         if (car.isGhost) {
             // Ghost: only the local player sees their own ghost
             if (car.isLocal) {
-                car.draw(ctx, true); // force ghost appearance
+                car.draw(ctx, true, carName); // force ghost appearance
             }
             // Remote/bot ghosts: don't draw on track (shown on podium instead)
         } else {
-            car.draw(ctx);
+            car.draw(ctx, false, carName);
         }
     });
 
@@ -1038,7 +1051,7 @@ function drawCarsOnPodium() {
         if (!car) return;
 
         const pos = positions[i];
-        car.drawOnPodium(ctx, pos.x, pos.y, i === 0 ? 1.4 : 1.1);
+        car.drawOnPodium(ctx, pos.x, pos.y, i === 0 ? 1.4 : 1.1, entry.name);
     });
 }
 
@@ -1173,9 +1186,14 @@ function drawBezierTrack(lineWidth, strokeColor, isDash = false) {
     const t = TRACKS[state.trackIdx];
     ctx.strokeStyle = strokeColor;
     ctx.lineWidth = lineWidth;
-    ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    if (isDash) ctx.setLineDash([25, 30]); else ctx.setLineDash([]);
+    if (isDash) {
+        ctx.setLineDash([25, 30]);
+        ctx.lineCap = 'butt'; // Flat caps prevent overlapping on thick dashed strokes
+    } else {
+        ctx.setLineDash([]);
+        ctx.lineCap = 'round';
+    }
 
     ctx.beginPath();
     const pStart = t.points[0];
@@ -1204,7 +1222,7 @@ function drawFinishLine() {
     const cx = (fl.x1 + fl.x2) / 2;
     const cy = (fl.y1 + fl.y2) / 2;
     const lineAngle = Math.atan2(fl.y2 - fl.y1, fl.x2 - fl.x1);
-    const lineLen = Math.sqrt((fl.x2 - fl.x1) ** 2 + (fl.y2 - fl.y1) ** 2);
+    const lineLen = t.width; // Draw finish line matching visual track width exactly
 
     ctx.translate(cx, cy);
     ctx.rotate(lineAngle);
@@ -1223,6 +1241,45 @@ function drawFinishLine() {
 
     ctx.restore();
 }
+
+function drawStartingGrid() {
+    const t = TRACKS[state.trackIdx];
+    if (!t.startPositions) return;
+
+    t.startPositions.forEach((pos, idx) => {
+        ctx.save();
+        ctx.translate(pos.x, pos.y);
+        ctx.rotate(t.startAngle + Math.PI / 2);
+
+        // F1 Grid Box visual dimensions (slightly larger for better margins around the car)
+        const boxW = 34;
+        const boxH = 60;
+
+        // Draw F1 starting half-box (thicker white brackets going to the middle of the car)
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        // Start at left-middle of the car
+        ctx.moveTo(-boxW / 2, 0);
+        // Go up to front-left
+        ctx.lineTo(-boxW / 2, -boxH / 2);
+        // Go across front of the car (front line)
+        ctx.lineTo(boxW / 2, -boxH / 2);
+        // Go down to right-middle of the car
+        ctx.lineTo(boxW / 2, 0);
+        ctx.stroke();
+
+        // Draw the starting position number (1-4) closer to the front line (bolder, larger white)
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+        ctx.font = 'bold 18px "Segoe UI", -apple-system, Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(idx + 1), 0, -10);
+
+        ctx.restore();
+    });
+}
+
 
 function drawTrack() {
     const t = TRACKS[state.trackIdx];
@@ -1252,22 +1309,42 @@ function drawTrack() {
         ctx.fill();
     }
 
-    drawBezierTrack(t.width + 18, '#fff');
+    // Clean white borders (visual boundaries)
+    drawBezierTrack(t.width + 18, '#ffffff');
+
+    // Main track tarmac
     drawBezierTrack(t.width, '#2c3e50');
     drawBezierTrack(t.width - 10, '#34495e');
     drawBezierTrack(2, '#f1c40f', true);
 
     drawFinishLine();
+    drawStartingGrid();
 
-    // Checkpoint markers (subtle dashed lines across the track)
+    // Checkpoint markers (subtle dashed lines across the track, constrained to track width)
     ctx.globalAlpha = 0.18;
     t.checkpoints.forEach((cp, i) => {
+        // Calculate shortened endpoints to fit track width exactly
+        const cx = (cp.x1 + cp.x2) / 2;
+        const cy = (cp.y1 + cp.y2) / 2;
+        const dx = cp.x2 - cp.x1;
+        const dy = cp.y2 - cp.y1;
+        const len = Math.sqrt(dx * dx + dy * dy);
+        if (len < 0.01) return;
+        const ux = dx / len;
+        const uy = dy / len;
+
+        const halfLen = t.width / 2;
+        const x1 = cx - ux * halfLen;
+        const y1 = cy - uy * halfLen;
+        const x2 = cx + ux * halfLen;
+        const y2 = cy + uy * halfLen;
+
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 3;
         ctx.setLineDash([8, 8]);
         ctx.beginPath();
-        ctx.moveTo(cp.x1, cp.y1);
-        ctx.lineTo(cp.x2, cp.y2);
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
         ctx.stroke();
     });
     ctx.globalAlpha = 1;
@@ -1279,8 +1356,8 @@ function drawParticles() {
         const p = state.particles[i];
         p.x += p.vx;
         p.y += p.vy;
-        p.alpha -= 0.02;
-        p.size += 0.15;
+        p.alpha -= p.decay !== undefined ? p.decay : 0.02;
+        p.size += p.growth !== undefined ? p.growth : 0.15;
 
         if (p.alpha <= 0) {
             state.particles.splice(i, 1);
@@ -1289,6 +1366,11 @@ function drawParticles() {
 
         if (p.color === 'spark') {
             ctx.fillStyle = `rgba(255, 200, 50, ${p.alpha})`;
+        } else if (p.color === 'blue-spark') {
+            ctx.fillStyle = `rgba(0, 210, 255, ${p.alpha})`;
+        } else if (p.color === 'tire-fire') {
+            // Intense yellow/orange fire that shifts colors as it fades
+            ctx.fillStyle = `rgba(255, ${Math.floor(p.alpha * 140 + 60)}, 10, ${p.alpha})`;
         } else {
             ctx.fillStyle = `rgba(180, 180, 180, ${p.alpha})`;
         }

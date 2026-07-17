@@ -2,8 +2,8 @@
 // tracks.js — Track definitions with improved start grids & finish lines
 // ============================================================
 
-export const PLAYER_COLORS = ['#00d2d3', '#ff6b6b', '#ffd32a', '#6c5ce7'];
-export const PLAYER_NAMES = ['CYAN', 'CORAL', 'GOLD', 'PURPLE'];
+export const PLAYER_COLORS = ['#0052cc', '#b71540', '#e65c00', '#5a189a'];
+export const PLAYER_NAMES = ['COBALT', 'CRIMSON', 'ORANGE', 'PURPLE'];
 
 export const TRACKS = [
     {
