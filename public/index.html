@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ultimate Drift Championship — Multiplayer Racing</title>
-    <meta name="description" content="2D racing game with drift, online and local multiplayer. Up to 4 players in epic drift battles!">
+    <meta name="description"
+        content="2D racing game with drift, online and local multiplayer. Up to 4 players in epic drift battles!">
     <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
-    
+
 
     <!-- HUD (built dynamically by JS) -->
     <div id="hud"></div>
@@ -26,14 +29,14 @@
             <!-- ======== MAIN MENU (CARDS CONTAINER) ======== -->
             <div id="main-menu" class="submenu" style="display: flex;">
                 <div class="cards-grid">
-                    
+
                     <!-- CARD 1: SOLO MODE -->
                     <div class="mode-card" id="card-solo">
                         <div class="card-header">
                             <img src="./assets/icons/racing-car.png" alt="racing cars icon" class="card-icon">
                             <span class="card-title">SOLO vs BOTS</span>
                         </div>
-                        
+
                         <div class="controls-info mini-controls">
                             <strong>Controls:</strong><br>
                             <div class="comands">
@@ -59,6 +62,14 @@
                                     <option value="dificil">Hard</option>
                                 </select>
                             </div>
+                            <div class="setup-row">
+                                <select id="solo-laps">
+                                    <option value="3" selected>3</option>
+                                    <option value="5">5</option>
+                                    <option value="7">7</option>
+                                    <option value="10">10</option>
+                                </select>
+                            </div>
                             <button class="btn btn-success btn-card-next" id="btn-solo-next">CONTINUE</button>
                         </div>
 
@@ -79,7 +90,7 @@
                             <img src="./assets/icons/racing-cars.png" alt="racing cars icon" class="card-icon">
                             <span class="card-title">LOCAL MODE</span>
                         </div>
-                        
+
                         <div class="controls-info mini-controls">
                             <strong>Controls:</strong><br>
                             <div class="comands">
@@ -106,6 +117,14 @@
                                     <option value="dificil">Hard</option>
                                 </select>
                             </div>
+                            <div class="setup-row">
+                                <select id="local-laps">
+                                    <option value="3" selected>3</option>
+                                    <option value="5">5</option>
+                                    <option value="7">7</option>
+                                    <option value="10">10</option>
+                                </select>
+                            </div>
                             <button class="btn btn-danger btn-card-next" id="btn-local-next">CONTINUE</button>
                         </div>
 
@@ -126,7 +145,7 @@
                             <img src="./assets/icons/online.png" alt="earth globe icon" class="card-icon">
                             <span class="card-title" id="online-card-title">ONLINE MODE</span>
                         </div>
-                        
+
                         <div class="controls-info mini-controls" id="online-controls-hint">
                             <strong>Controls:</strong><br>
                             <div class="comands">
@@ -138,10 +157,12 @@
                         <!-- Online Step 1: Join / Create -->
                         <div class="card-step online-join-step" id="online-step-1">
                             <div>
-                                <input class="input-field input-code" id="input-room-code" placeholder="ABCD" maxlength="4">
-                                <input class="input-field" id="input-online-name" placeholder="Your name" maxlength="12" value="">
+                                <input class="input-field input-code" id="input-room-code" placeholder="ABCD"
+                                    maxlength="4">
+                                <input class="input-field" id="input-online-name" placeholder="Your name" maxlength="12"
+                                    value="">
                             </div>
-                            <div style="width: 100%;">
+                            <div class="card-action-group">
                                 <button class="btn btn-blue btn-card-next" id="btn-join-confirm">JOIN</button>
                                 <button class="btn btn-purple btn-card-back" id="btn-create">CREATE</button>
                             </div>
@@ -153,6 +174,7 @@
                             <div class="lobby-room-badge">
                                 <span class="lobby-room-code" id="display-room-code">----</span>
                             </div>
+                            <div id="lobby-laps-info" style="font-size: 13px; color: #c084fc; font-weight: 600; text-align: center; margin-top: 2px; margin-bottom: 6px;">Laps: 3</div>
 
                             <!-- Player List -->
                             <div class="lobby-players-container">
@@ -165,8 +187,10 @@
 
                             <!-- Actions -->
                             <div class="lobby-actions">
-                                <button class="btn btn-online-customize" id="btn-lobby-customize" style="display:none;">CUSTOMIZE</button>
-                                <button class="btn btn-online-start" id="btn-lobby-start" style="display:none;">START</button>
+                                <button class="btn btn-online-customize" id="btn-lobby-customize"
+                                    style="display:none;">CUSTOMIZE</button>
+                                <button class="btn btn-online-start" id="btn-lobby-start"
+                                    style="display:none;">START</button>
                                 <button class="btn btn-online-leave" id="btn-lobby-leave">LEAVE</button>
                             </div>
                         </div>
@@ -187,6 +211,14 @@
                                     <option value="facil">Easy</option>
                                     <option value="medio" selected>Medium</option>
                                     <option value="dificil">Hard</option>
+                                </select>
+                            </div>
+                            <div class="setup-row">
+                                <select id="lobby-laps">
+                                    <option value="3" selected>3</option>
+                                    <option value="5">5</option>
+                                    <option value="7">7</option>
+                                    <option value="10">10</option>
                                 </select>
                             </div>
                             <button class="btn btn-purple btn-card-next" id="btn-customize-next">CONTINUE</button>
@@ -216,8 +248,9 @@
     <div id="toast-container"></div>
 
     <!-- Game Scripts (ES Modules) -->
-    <script type="module" src="/js/game.js"></script>
-    <script type="module" src="/js/segmented-picker.js"></script>
+    <script type="module" src="/js/game.js?v=2.0"></script>
+    <script type="module" src="/js/segmented-picker.js?v=2.0"></script>
 
 </body>
+
 </html>

@@ -96,7 +96,7 @@ export class NetworkManager {
                 this.roomCode = msg.code;
                 this.mySlot = msg.slot;
                 this.isHost = false;
-                if (this.onRoomJoined) this.onRoomJoined(msg.code, msg.slot, msg.players);
+                if (this.onRoomJoined) this.onRoomJoined(msg.code, msg.slot, msg.players, msg.config, msg);
                 break;
 
             case 'player_joined':
@@ -162,8 +162,8 @@ export class NetworkManager {
         this._send({ type: 'set_config', config });
     }
 
-    startGame() {
-        this._send({ type: 'start_game' });
+    startGame(laps = null) {
+        this._send({ type: 'start_game', laps: laps || undefined });
     }
 
     sendCarState(carState, botStates = []) {

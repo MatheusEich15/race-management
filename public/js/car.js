@@ -142,8 +142,6 @@ export class DriftCar {
                 alpha: 0.5,
                 color: 'smoke'
             });
-
-
         }
 
         // Checkpoint detection (line crossing — same logic as finish line)

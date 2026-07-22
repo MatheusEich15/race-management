@@ -181,13 +181,8 @@ export function returnToLobby(isHost) {
     // Switch to lobby step inside the card
     const lobbyEl = document.getElementById('online-step-lobby');
     if (lobbyEl) {
-        if (isHost) {
-            lobbyEl.classList.add('is-host');
-            lobbyEl.classList.remove('is-guest');
-        } else {
-            lobbyEl.classList.remove('is-host');
-            lobbyEl.classList.add('is-guest');
-        }
+        lobbyEl.classList.toggle('is-host', isHost);
+        lobbyEl.classList.toggle('is-guest', !isHost);
     }
     showOnlineStep('online-step-lobby');
 

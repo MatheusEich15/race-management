@@ -446,7 +446,7 @@ canvas {
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
 }
 
 .card-icon {
@@ -466,7 +466,7 @@ canvas {
 .mini-controls {
     font-size: 13px !important;
     padding: 8px 12px !important;
-    margin-bottom: 20px !important;
+    margin-bottom: 12px !important;
     background: rgba(255, 255, 255, 0.03) !important;
     border: 1px solid rgba(255, 255, 255, 0.05) !important;
     border-radius: 8px !important;
@@ -482,18 +482,14 @@ canvas {
     display: flex;
     flex-direction: column;
     flex: 1;
-    justify-content: space-between;
-}
-
-#solo-step-2,
-#local-step-2 {
     justify-content: flex-start;
 }
 
-/* Push START button (and BACK below it) to the bottom of step-2,
-   so BACK ends up at the same vertical position as CHOOSE in step-1 */
-#solo-step-2 .btn-card-next,
-#local-step-2 .btn-card-next {
+/* Push primary action buttons to the bottom of all steps
+   so bottom buttons (CONTINUE, BACK, CREATE, LEAVE, CONFIRM) end up at the exact same vertical position */
+.card-step > .btn-card-next,
+.card-step > .card-action-group,
+.card-step > .lobby-actions {
     margin-top: auto !important;
 }
 
@@ -549,7 +545,7 @@ canvas {
 
 .mode-card .btn {
     width: 100%;
-    margin: 8px 0 0 0;
+    margin: 6px 0 0 0;
     justify-content: center;
     font-size: 16px;
     padding: 10px 20px;
@@ -559,11 +555,17 @@ canvas {
 .btn-card-next,
 .btn-card-back {
     width: 100% !important;
-    margin: 8px 0 0 0 !important;
+    margin: 6px 0 0 0 !important;
     justify-content: center !important;
     font-size: 16px !important;
-    padding: 12px 24px !important;
+    padding: 10px 24px !important;
     gap: 0.5rem !important;
+    border-radius: 10px !important;
+}
+
+.card-action-group .btn,
+.lobby-actions .btn {
+    margin: 0 !important;
 }
 
 /* Track list select inside cards */
@@ -869,16 +871,25 @@ canvas {
 
 
 
+.card-action-group,
+.lobby-actions {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+    margin-top: auto !important;
+}
+
 .btn-online-customize {
     background: linear-gradient(135deg, rgba(128, 64, 184, 0.2), rgba(160, 90, 220, 0.3));
     border: 1px solid rgba(128, 64, 184, 0.5);
     color: #c084fc;
     width: 100% !important;
     margin: 0 !important;
-    padding: 12px 24px !important;
+    padding: 10px 24px !important;
     font-size: 16px !important;
     font-weight: 700;
-    letter-spacing: 1.5px;
+    letter-spacing: 1px;
     border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -904,7 +915,7 @@ canvas {
     color: #fff;
     width: 100% !important;
     margin: 0 !important;
-    padding: 12px 24px !important;
+    padding: 10px 24px !important;
     font-size: 16px !important;
     font-weight: 700;
     letter-spacing: 1px;
@@ -938,11 +949,11 @@ canvas {
     color: #fff;
     width: 100% !important;
     margin: 0 !important;
-    padding: 12px 24px !important;
+    padding: 10px 24px !important;
     font-size: 16px !important;
     font-weight: 600;
     letter-spacing: 1px;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     transition: all 0.2s ease;
     text-align: center;
@@ -961,35 +972,9 @@ canvas {
     box-shadow: none !important;
 }
 
-/* Lobby step flex layout */
-.online-lobby-step {
-    justify-content: flex-start !important;
-    gap: 0;
-}
-
-/* Join step: group all content at top, no excessive spacing */
-.online-join-step {
-    justify-content: flex-start !important;
-}
-
 /* Join step inputs compact spacing */
 #online-step-1 .input-field {
     margin: 4px 0;
-}
-
-#online-step-1 {
-    display: flex;
-    gap: 2.125rem;
-}
-
-/* Customize steps: align top like other card steps - removed overrides to match solo/local */
-
-/* Lobby actions: same gap as btn-card-next/back margin */
-.lobby-actions {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    gap: 8px;
 }
 
 /* Customize step header — removed, replaced by controls-info */
@@ -1170,15 +1155,15 @@ canvas {
     display: flex;
     flex-direction: column;
     width: 100%;
-    margin-bottom: 12px;
+    margin-bottom: 6px;
     align-items: flex-start;
 }
 
 .select-label-custom {
-    font-size: 12px;
+    font-size: 11px;
     color: #a0aec0;
     font-weight: 400;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
     letter-spacing: 0.5px;
     text-transform: uppercase;
 }
@@ -1191,16 +1176,17 @@ canvas {
     border-radius: 10px;
     padding: 3px;
     gap: 4px;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+    align-items: center;
 }
 
 .selector-option {
     flex: 1;
-    min-width: 60px;
+    min-width: 0;
     background: transparent;
     border: none;
     color: #a0aec0;
-    padding: 8px 10px;
+    padding: 7px 6px;
     font-size: 13px;
     font-weight: 600;
     font-family: 'Outfit', sans-serif;
@@ -1222,6 +1208,46 @@ canvas {
     box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
 }
 
+/* Inline Custom Input Option */
+.selector-option-input {
+    flex: 1.3;
+    min-width: 55px;
+    width: 55px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: #a0aec0;
+    padding: 6px 4px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Outfit', sans-serif;
+    border-radius: 7px;
+    outline: none;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.selector-option-input::placeholder {
+    color: rgba(160, 174, 192, 0.5);
+    font-weight: 400;
+}
+
+.selector-option-input::-webkit-outer-spin-button,
+.selector-option-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.selector-option-input[type=number] {
+    -moz-appearance: textfield;
+}
+
+.selector-option-input:focus,
+.selector-option-input.active {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.2);
+    color: #fff;
+}
+
 /* ---- Card Specific Active and Accent Highlights ---- */
 
 /* Card Solo (Green Accent) */
@@ -1237,6 +1263,13 @@ canvas {
 
 #card-solo .selector-option.active {
     background: linear-gradient(135deg, #1e8449, #27ae60);
+    box-shadow: 0 2px 10px rgba(39, 174, 96, 0.3);
+}
+
+#card-solo .selector-option-input:focus,
+#card-solo .selector-option-input.active {
+    background: linear-gradient(135deg, #1e8449, #27ae60);
+    color: #fff;
     box-shadow: 0 2px 10px rgba(39, 174, 96, 0.3);
 }
 
@@ -1261,6 +1294,13 @@ canvas {
     box-shadow: 0 2px 10px rgba(220, 38, 38, 0.3);
 }
 
+#card-local .selector-option-input:focus,
+#card-local .selector-option-input.active {
+    background: linear-gradient(135deg, #991b1b, #dc2626);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(220, 38, 38, 0.3);
+}
+
 #card-local .setup-row select:focus {
     border-color: #dc2626;
     box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.25);
@@ -1279,6 +1319,13 @@ canvas {
 
 #card-online .selector-option.active {
     background: linear-gradient(135deg, #60308a, #8040b8);
+    box-shadow: 0 2px 10px rgba(128, 64, 184, 0.3);
+}
+
+#card-online .selector-option-input:focus,
+#card-online .selector-option-input.active {
+    background: linear-gradient(135deg, #60308a, #8040b8);
+    color: #fff;
     box-shadow: 0 2px 10px rgba(128, 64, 184, 0.3);
 }
 

@@ -16,7 +16,6 @@ import {
 
 
 // ---- Constants ----
-const TOTAL_LAPS = 3;
 const CANVAS_W = 1400;
 const CANVAS_H = 850;
 const RACE_END_TIMEOUT = 20000; // 20s after first finisher for others
@@ -29,6 +28,7 @@ const ctx = canvas.getContext('2d');
 let state = {
     mode: null,          // 'solo' | 'local' | 'online'
     trackIdx: 0,
+    laps: 3,             // current race lap count (set at game start)
     cars: [],
     botAIs: [],
     localSlots: [],      // which car slots are controlled locally
@@ -130,7 +130,7 @@ function computeRanking() {
             slot: car.slot,
             name: getCarName(car),
             color: car.color,
-            lap: Math.min(car.currentLap, TOTAL_LAPS),
+            lap: Math.min(car.currentLap, state.laps),
             finished: car.finished,
             finishTime: car.finishTime,
             progress: progress
@@ -207,6 +207,20 @@ function buildCardTrackLists() {
     }
 }
 
+function getLapsValue(selectId) {
+    if (typeof window.getSegmentedValue === 'function') {
+        const segVal = window.getSegmentedValue(selectId);
+        if (segVal !== null && !isNaN(segVal) && segVal > 0) {
+            return Math.min(100, Math.max(1, segVal));
+        }
+    }
+    const el = document.getElementById(selectId);
+    if (!el) return 3;
+    let val = parseInt(el.value);
+    if (isNaN(val) || val < 1) val = 3;
+    return Math.min(100, Math.max(1, val));
+}
+
 function initMenus() {
     // Build track selections within the cards
     buildCardTrackLists();
@@ -218,6 +232,12 @@ function initMenus() {
     document.getElementById('solo-diff').addEventListener('change', e => {
         state.soloBotDifficulty = e.target.value;
     });
+    document.getElementById('solo-laps').addEventListener('change', () => {
+        if (state.mode !== 'online') {
+            state.laps = getLapsValue('solo-laps');
+        }
+    });
+
     document.getElementById('btn-solo-next').addEventListener('click', () => {
         document.getElementById('solo-step-1').style.display = 'none';
         document.getElementById('solo-step-2').style.display = 'flex';
@@ -237,6 +257,12 @@ function initMenus() {
     document.getElementById('local-diff').addEventListener('change', e => {
         state.localBotDifficulty = e.target.value;
     });
+    document.getElementById('local-laps').addEventListener('change', () => {
+        if (state.mode !== 'online') {
+            state.laps = getLapsValue('local-laps');
+        }
+    });
+
     document.getElementById('btn-local-next').addEventListener('click', () => {
         document.getElementById('local-step-1').style.display = 'none';
         document.getElementById('local-step-2').style.display = 'flex';
@@ -265,7 +291,29 @@ function initMenus() {
 
     // Lobby controls
     document.getElementById('btn-lobby-start').addEventListener('click', () => {
-        net.startGame();
+        if (net.isHost) {
+            const lapsVal = getLapsValue('lobby-laps') || state.onlineLaps || 3;
+            state.onlineLaps = lapsVal;
+            state.laps = lapsVal;
+            const trackIdx = state.onlineLobbyTrackIdx || 0;
+
+            const botsVal = (typeof window.getSegmentedValue === 'function' ? window.getSegmentedValue('lobby-bots') : null);
+            const lobbyBotsVal = botsVal !== null ? botsVal : (parseInt(document.getElementById('lobby-bots')?.value) || 0);
+            const diffVal = document.getElementById('lobby-diff')?.value || 'medio';
+
+            // Send config first to ensure room state in server is saved
+            net.setConfig({
+                trackIdx,
+                botCount: parseInt(lobbyBotsVal) || 0,
+                botDifficulty: diffVal,
+                laps: lapsVal,
+            });
+
+            // Start game with explicit laps payload
+            net.startGame(lapsVal);
+        } else {
+            net.startGame();
+        }
     });
     document.getElementById('btn-lobby-leave').addEventListener('click', () => {
         net.leaveRoom();
@@ -277,19 +325,46 @@ function initMenus() {
         showOnlineStep('online-step-customize-1');
     });
     document.getElementById('btn-customize-next').addEventListener('click', () => {
+        state.onlineLaps = getLapsValue('lobby-laps');
         showOnlineStep('online-step-customize-2');
+    });
+
+    // Listen to lobby laps change to immediately update local state and sync config with server
+    document.getElementById('lobby-laps')?.addEventListener('change', () => {
+        const val = getLapsValue('lobby-laps');
+        state.onlineLaps = val;
+        if (net.isHost) {
+            const trackIdx = state.onlineLobbyTrackIdx || 0;
+            const lobbyBotsVal = document.getElementById('lobby-bots')?.value;
+            const lobbyDiffVal = document.getElementById('lobby-diff')?.value;
+            net.setConfig({
+                trackIdx,
+                botCount: parseInt(lobbyBotsVal) || 0,
+                botDifficulty: lobbyDiffVal || 'medio',
+                laps: val,
+            });
+        }
     });
 
     // Host Customize flow — Step 2 (track → confirm back to lobby)
     document.getElementById('btn-customize-confirm').addEventListener('click', () => {
-        // Send configuration to server
+        const lapsVal = getLapsValue('lobby-laps');
+        state.onlineLaps = lapsVal;
+        state.laps = lapsVal;
         const trackIdx = state.onlineLobbyTrackIdx || 0;
-        const lobbyBotsVal = document.getElementById('lobby-bots')?.value;
-        const lobbyDiffVal = document.getElementById('lobby-diff')?.value;
+        
+        const botsVal = (typeof window.getSegmentedValue === 'function' ? window.getSegmentedValue('lobby-bots') : null);
+        const lobbyBotsVal = botsVal !== null ? botsVal : (parseInt(document.getElementById('lobby-bots')?.value) || 0);
+        const diffVal = document.getElementById('lobby-diff')?.value || 'medio';
+
+        const lapsInfo = document.getElementById('lobby-laps-info');
+        if (lapsInfo) lapsInfo.textContent = `Laps: ${lapsVal}`;
+
         net.setConfig({
             trackIdx,
             botCount: parseInt(lobbyBotsVal) || 0,
-            botDifficulty: lobbyDiffVal || 'medio',
+            botDifficulty: diffVal,
+            laps: lapsVal,
         });
         showOnlineStep('online-step-lobby');
     });
@@ -341,6 +416,14 @@ function setupNetworkCallbacks() {
         setRoomCode(code);
         updateLobbyPlayers(lobbyPlayers);
 
+        // Dynamically set default laps to 3 if not already set
+        const currentLaps = getLapsValue('lobby-laps') || 3;
+        state.onlineLaps = currentLaps;
+        state.laps = currentLaps;
+
+        const lapsInfo = document.getElementById('lobby-laps-info');
+        if (lapsInfo) lapsInfo.textContent = `Laps: ${state.onlineLaps}`;
+
         // Switch card to lobby step (host view)
         const lobbyEl = document.getElementById('online-step-lobby');
         if (lobbyEl) {
@@ -356,10 +439,19 @@ function setupNetworkCallbacks() {
         if (waitingInfo) waitingInfo.style.display = 'none';
     };
 
-    net.onRoomJoined = (code, slot, players) => {
+    net.onRoomJoined = (code, slot, players, config, rawMsg) => {
         lobbyPlayers = players;
         setRoomCode(code);
         updateLobbyPlayers(lobbyPlayers);
+        
+        // Extract laps strictly from room config sent by server
+        const joinedLaps = parseInt(config?.laps || rawMsg?.laps || rawMsg?.config?.laps || 3);
+        const validLaps = (!isNaN(joinedLaps) && joinedLaps > 0) ? Math.min(100, joinedLaps) : 3;
+        state.onlineLaps = validLaps;
+        state.laps = validLaps;
+
+        const lapsInfo = document.getElementById('lobby-laps-info');
+        if (lapsInfo) lapsInfo.textContent = `Laps: ${state.onlineLaps}`;
 
         // Switch card to lobby step (guest view)
         const lobbyEl = document.getElementById('online-step-lobby');
@@ -391,6 +483,18 @@ function setupNetworkCallbacks() {
     };
 
     net.onConfigUpdated = (config) => {
+        const l = parseInt(config?.laps || config?.config?.laps);
+        if (!isNaN(l) && l > 0) {
+            const validLaps = Math.min(100, l);
+            state.onlineLaps = validLaps;
+            state.laps = validLaps;
+            const lapsInfo = document.getElementById('lobby-laps-info');
+            if (lapsInfo) lapsInfo.textContent = `Laps: ${validLaps}`;
+        }
+        if (config?.players) {
+            lobbyPlayers = config.players;
+            updateLobbyPlayers(lobbyPlayers);
+        }
         // Update host's internal track index and highlight active track in the list
         if (config.trackIdx !== undefined) {
             state.onlineLobbyTrackIdx = config.trackIdx;
@@ -406,6 +510,15 @@ function setupNetworkCallbacks() {
     net.onGameStarting = (config) => {
         state.mode = 'online';
         setFlow('online');
+
+        // COMPULSORY LAPS LOCK FROM GAME STARTING MESSAGE
+        const rawLaps = parseInt(config?.laps || config?.config?.laps);
+        if (!isNaN(rawLaps) && rawLaps > 0) {
+            const lockedLaps = Math.min(100, rawLaps);
+            state.onlineLaps = lockedLaps;
+            state.laps = lockedLaps;
+        }
+
         // Setup cars but DON'T start countdown yet — wait for race_go
         setupOnlineGame(config);
     };
@@ -475,6 +588,7 @@ function startSoloGame() {
     const soloDiffEl = document.getElementById('solo-diff');
     if (soloBotsEl) state.soloBotCount = parseInt(soloBotsEl.value) || 0;
     if (soloDiffEl) state.soloBotDifficulty = soloDiffEl.value || 'medio';
+    state.laps = getLapsValue('solo-laps');
 
     // Use the track selected in the solo card
     state.trackIdx = state.soloTrackIdx;
@@ -522,6 +636,7 @@ function startLocalGame() {
     const localDiffEl = document.getElementById('local-diff');
     if (localBotsEl) state.localBotCount = parseInt(localBotsEl.value) || 0;
     if (localDiffEl) state.localBotDifficulty = localDiffEl.value || 'medio';
+    state.laps = getLapsValue('local-laps');
 
     // Use the track selected in the local card
     state.trackIdx = state.localTrackIdx;
@@ -571,7 +686,27 @@ function startLocalGame() {
  * Setup online game cars (called on game_starting). Does NOT start countdown.
  */
 function setupOnlineGame(config) {
+    state.mode = 'online';
     state.trackIdx = config.trackIdx;
+    
+    // STRICT VERIFIED SYNC DIRECTLY FROM SERVER PAYLOAD
+    let verifiedLaps = 3;
+    const netLaps = parseInt(config?.laps || config?.config?.laps);
+    if (!isNaN(netLaps) && netLaps > 0) {
+        verifiedLaps = netLaps;
+    } else if (state.onlineLaps && state.onlineLaps > 0) {
+        verifiedLaps = state.onlineLaps;
+    }
+
+    const lockedLaps = Math.min(100, Math.max(1, verifiedLaps));
+    state.laps = lockedLaps;
+    state.onlineLaps = lockedLaps;
+
+    const lapsInfo = document.getElementById('lobby-laps-info');
+    if (lapsInfo) lapsInfo.textContent = `Laps: ${lockedLaps}`;
+
+    showToast(`🏁 Online Race: ${state.laps} Lap(s)!`);
+
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
 
@@ -594,7 +729,7 @@ function setupOnlineGame(config) {
         state.cars.push(car);
     }
 
-    if (net.isHost && config.botCount > 0) {
+    if (config.botCount > 0) {
         const bc = BOT_CONFIGS[config.botDifficulty] || BOT_CONFIGS.medio;
         const usedSlots = config.players.map(p => p.slot);
         let botSlotIdx = 0;
@@ -608,9 +743,14 @@ function setupOnlineGame(config) {
                 state.cars.push(bot);
                 state.botSlots.push(s);
 
-                const ai = new BotAI(config.botDifficulty);
-                ai.findNearestNode(pos.x, pos.y, state.cachedSegments);
-                state.botAIs.push(ai);
+                // AI logic runs only on host, but bot car object is instantiated for all players
+                if (net.isHost) {
+                    const ai = new BotAI(config.botDifficulty);
+                    ai.findNearestNode(pos.x, pos.y, state.cachedSegments);
+                    state.botAIs.push(ai);
+                } else {
+                    bot.isRemote = true; // Non-hosts treat bots as remote network cars
+                }
                 botSlotIdx++;
             }
         }
@@ -648,8 +788,14 @@ function startRace() {
     state.running = true;
     state.waitingForGo = false; // Reset so solo/local games don't show "GET READY..."
 
+    if (state.mode === 'online') {
+        const activeLaps = state.onlineLaps || state.laps || 3;
+        state.laps = activeLaps;
+        state.onlineLaps = activeLaps;
+    }
+
     buildHUD(state.cars, {
-        totalLaps: TOTAL_LAPS,
+        totalLaps: state.laps,
         mode: state.mode,
         botSlots: state.botSlots,
         localSlots: state.localSlots,
@@ -727,7 +873,7 @@ function gameLoop() {
     const trackData = {
         trackIdx: state.trackIdx,
         cachedSegments: state.cachedSegments,
-        totalLaps: TOTAL_LAPS,
+        totalLaps: state.laps,
     };
 
     // ---- Update ----
@@ -827,7 +973,7 @@ function gameLoop() {
         }
 
         computeRanking();
-        state.cars.forEach((car, i) => updateHUD(i, car, TOTAL_LAPS));
+        state.cars.forEach((car, i) => updateHUD(i, car, state.laps));
 
         // Network: send state (throttled to ~30Hz / every 33ms)
         if (state.mode === 'online' && state.gameStarted) {
@@ -1008,7 +1154,7 @@ function drawRanking() {
         } else {
             ctx.fillStyle = '#7f8c8d';
             ctx.font = '12px "Outfit", sans-serif';
-            ctx.fillText(`L${entry.lap}/${TOTAL_LAPS}`, panelX + panelW - 10, centerY);
+            ctx.fillText(`L${entry.lap}/${state.laps}`, panelX + panelW - 10, centerY);
         }
         ctx.textAlign = 'left';
     });
@@ -1088,7 +1234,7 @@ function drawPodiumOverlay() {
 
     ctx.fillStyle = '#5a6270';
     ctx.font = '16px "Outfit", sans-serif';
-    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${TOTAL_LAPS} laps`, CANVAS_W / 2, 115);
+    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${state.laps} laps`, CANVAS_W / 2, 115);
 
     const medals = ['🥇', '🥈', '🥉', ''];
     const posLabels = ['1st PLACE', '2nd PLACE', '3rd PLACE', '4th PLACE'];

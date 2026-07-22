@@ -57,6 +57,25 @@ function broadcastToRoom(room, msg, excludeWs = null) {
     }
 }
 
+function syncRoomState(room) {
+    const playerList = [];
+    for (const p of room.players.values()) {
+        playerList.push({ name: p.name, slot: p.slot, isHost: p.isHost });
+    }
+    const payload = {
+        type: 'config_updated',
+        config: {
+            trackIdx: room.trackIdx,
+            botCount: room.botCount,
+            botDifficulty: room.botDifficulty,
+            laps: room.laps
+        },
+        laps: room.laps,
+        players: playerList
+    };
+    broadcastToRoom(room, payload);
+}
+
 function removePlayerFromRoom(playerId) {
     for (const [code, room] of rooms) {
         if (room.players.has(playerId)) {
@@ -131,6 +150,7 @@ wss.on('connection', (ws) => {
                     trackIdx: 0,
                     botCount: 0,
                     botDifficulty: 'medio',
+                    laps: 3,
                     players: new Map(),
                     finishedPlayers: new Set()
                 };
@@ -148,7 +168,14 @@ wss.on('connection', (ws) => {
                 ws.send(JSON.stringify({
                     type: 'room_created',
                     code,
-                    slot
+                    slot,
+                    laps: room.laps,
+                    config: {
+                        trackIdx: room.trackIdx,
+                        botCount: room.botCount,
+                        botDifficulty: room.botDifficulty,
+                        laps: room.laps
+                    }
                 }));
 
                 console.log(`Room ${code} created by ${msg.playerName}`);
@@ -203,15 +230,25 @@ wss.on('connection', (ws) => {
                     type: 'room_joined',
                     code,
                     slot,
-                    players: playerList
+                    players: playerList,
+                    laps: room.laps,
+                    config: {
+                        trackIdx: room.trackIdx,
+                        botCount: room.botCount,
+                        botDifficulty: room.botDifficulty,
+                        laps: room.laps
+                    }
                 }));
 
-                // Notify others
+                // Notify others that player joined
                 broadcastToRoom(room, {
                     type: 'player_joined',
                     name: playerName,
                     slot
                 }, ws);
+
+                // Broadcast room configuration (laps, track) to entire room to guarantee sync
+                syncRoomState(room);
 
                 console.log(`${playerName} joined room ${code} as slot ${slot}`);
                 break;
@@ -230,15 +267,12 @@ wss.on('connection', (ws) => {
                     if (msg.config.trackIdx !== undefined) room.trackIdx = msg.config.trackIdx;
                     if (msg.config.botCount !== undefined) room.botCount = msg.config.botCount;
                     if (msg.config.botDifficulty !== undefined) room.botDifficulty = msg.config.botDifficulty;
+                    if (msg.config.laps !== undefined) {
+                        const l = parseInt(msg.config.laps);
+                        if (!isNaN(l) && l > 0) room.laps = Math.min(100, l);
+                    }
 
-                    broadcastToRoom(room, {
-                        type: 'config_updated',
-                        config: {
-                            trackIdx: room.trackIdx,
-                            botCount: room.botCount,
-                            botDifficulty: room.botDifficulty
-                        }
-                    });
+                    syncRoomState(room);
                 }
                 break;
             }
@@ -247,6 +281,11 @@ wss.on('connection', (ws) => {
                 const room = findPlayerRoom(playerId);
                 if (!room || room.hostId !== playerId) return;
 
+                const incomingLaps = parseInt(msg.laps || (msg.config && msg.config.laps));
+                if (!isNaN(incomingLaps) && incomingLaps > 0) {
+                    room.laps = Math.min(100, incomingLaps);
+                }
+
                 room.state = 'racing';
 
                 const players = [];
@@ -254,11 +293,20 @@ wss.on('connection', (ws) => {
                     players.push({ name: p.name, slot: p.slot, isHost: p.isHost });
                 }
 
+                const finalLaps = room.laps || 3;
+
                 broadcastToRoom(room, {
                     type: 'game_starting',
                     trackIdx: room.trackIdx,
                     botCount: room.botCount,
                     botDifficulty: room.botDifficulty,
+                    laps: finalLaps,
+                    config: {
+                        trackIdx: room.trackIdx,
+                        botCount: room.botCount,
+                        botDifficulty: room.botDifficulty,
+                        laps: finalLaps
+                    },
                     players
                 });
 
