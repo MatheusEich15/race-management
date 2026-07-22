@@ -352,9 +352,10 @@ function findPlayerRoom(playerId) {
 }
 
 // ---- Start Server ----
-server.listen(PORT, () => {
+// Adicionamos '0.0.0.0' para o Fly.io conseguir rotear os jogadores
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`\n🏎️  Ultimate Drift 2D Server`);
     console.log(`   Local:   http://localhost:${PORT}`);
-    console.log(`   Network: http://<your-ip>:${PORT}`);
+    console.log(`   Network: http://0.0.0.0:${PORT}`);
     console.log(`\n   Pronto para corridas!\n`);
 });
