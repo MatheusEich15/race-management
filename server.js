@@ -1,19 +1,27 @@
 // ============================================================
-// server.js — Express + WebSocket server for multiplayer rooms
+// server.js — Express + Socket.IO server (com Long-Polling Fallback)
 // ============================================================
 
 const express = require('express');
 const http = require('http');
-const { WebSocketServer } = require('ws');
+const { Server } = require('socket.io');
 const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server });
+
+// ---- Socket.IO com suporte a Polling (Proxy Bypass) e WebSocket ----
+const io = new Server(server, {
+    cors: {
+        origin: '*',
+        methods: ['GET', 'POST', 'OPTIONS']
+    },
+    transports: ['polling', 'websocket'] // Inicia em polling e faz upgrade se permitido
+});
 
 const PORT = process.env.PORT || 3000;
 
-// ---- CORS (needed when frontend and server are on different domains) ----
+// ---- CORS (Express) ----
 app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -22,7 +30,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// ---- No-cache headers for JS files during development ----
+// ---- No-cache headers ----
 app.use((req, res, next) => {
     if (req.path.endsWith('.js')) {
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -48,11 +56,10 @@ function generateRoomCode() {
     return rooms.has(code) ? generateRoomCode() : code;
 }
 
-function broadcastToRoom(room, msg, excludeWs = null) {
-    const data = JSON.stringify(msg);
+function broadcastToRoom(room, msg, excludeSocket = null) {
     for (const player of room.players.values()) {
-        if (player.ws !== excludeWs && player.ws.readyState === 1) {
-            player.ws.send(data);
+        if (player.socket !== excludeSocket && player.socket.connected) {
+            player.socket.emit(msg.type, msg);
         }
     }
 }
@@ -102,248 +109,6 @@ function getAvailableSlot(room) {
     return -1;
 }
 
-// ---- WebSocket Handling ----
-wss.on('connection', (ws) => {
-    const playerId = nextPlayerId++;
-    ws._playerId = playerId;
-
-    console.log(`Player connected: #${playerId}`);
-
-    ws.on('message', (raw) => {
-        let msg;
-        try {
-            msg = JSON.parse(raw);
-        } catch (e) {
-            return;
-        }
-
-        switch (msg.type) {
-            case 'create_room': {
-                // Remove from any existing room
-                removePlayerFromRoom(playerId);
-
-                const code = generateRoomCode();
-                const slot = 0;
-                const room = {
-                    code,
-                    hostId: playerId,
-                    state: 'lobby',
-                    trackIdx: 0,
-                    botCount: 0,
-                    botDifficulty: 'medio',
-                    players: new Map(),
-                    finishedPlayers: new Set()
-                };
-
-                room.players.set(playerId, {
-                    id: playerId,
-                    ws,
-                    name: msg.playerName || 'Host',
-                    slot,
-                    isHost: true
-                });
-
-                rooms.set(code, room);
-
-                ws.send(JSON.stringify({
-                    type: 'room_created',
-                    code,
-                    slot
-                }));
-
-                console.log(`Room ${code} created by ${msg.playerName}`);
-                break;
-            }
-
-            case 'join_room': {
-                const code = msg.code?.toUpperCase();
-                const room = rooms.get(code);
-
-                if (!room) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Sala não encontrada' }));
-                    return;
-                }
-
-                if (room.state !== 'lobby') {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Race already started' }));
-                    return;
-                }
-
-                if (room.players.size >= 4) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Sala cheia (máx 4 jogadores)' }));
-                    return;
-                }
-
-                // Remove from any existing room
-                removePlayerFromRoom(playerId);
-
-                const slot = getAvailableSlot(room);
-                if (slot === -1) {
-                    ws.send(JSON.stringify({ type: 'error', message: 'Sem slots disponíveis' }));
-                    return;
-                }
-
-                const playerName = msg.playerName || `Jogador ${slot + 1}`;
-
-                room.players.set(playerId, {
-                    id: playerId,
-                    ws,
-                    name: playerName,
-                    slot,
-                    isHost: false
-                });
-
-                // Send room info to the joining player
-                const playerList = [];
-                for (const p of room.players.values()) {
-                    playerList.push({ name: p.name, slot: p.slot, isHost: p.isHost });
-                }
-
-                ws.send(JSON.stringify({
-                    type: 'room_joined',
-                    code,
-                    slot,
-                    players: playerList
-                }));
-
-                // Notify others
-                broadcastToRoom(room, {
-                    type: 'player_joined',
-                    name: playerName,
-                    slot
-                }, ws);
-
-                console.log(`${playerName} joined room ${code} as slot ${slot}`);
-                break;
-            }
-
-            case 'leave_room': {
-                removePlayerFromRoom(playerId);
-                break;
-            }
-
-            case 'set_config': {
-                const room = findPlayerRoom(playerId);
-                if (!room || room.hostId !== playerId) return;
-
-                if (msg.config) {
-                    if (msg.config.trackIdx !== undefined) room.trackIdx = msg.config.trackIdx;
-                    if (msg.config.botCount !== undefined) room.botCount = msg.config.botCount;
-                    if (msg.config.botDifficulty !== undefined) room.botDifficulty = msg.config.botDifficulty;
-
-                    broadcastToRoom(room, {
-                        type: 'config_updated',
-                        config: {
-                            trackIdx: room.trackIdx,
-                            botCount: room.botCount,
-                            botDifficulty: room.botDifficulty
-                        }
-                    });
-                }
-                break;
-            }
-
-            case 'start_game': {
-                const room = findPlayerRoom(playerId);
-                if (!room || room.hostId !== playerId) return;
-
-                room.state = 'racing';
-
-                const players = [];
-                for (const p of room.players.values()) {
-                    players.push({ name: p.name, slot: p.slot, isHost: p.isHost });
-                }
-
-                broadcastToRoom(room, {
-                    type: 'game_starting',
-                    trackIdx: room.trackIdx,
-                    botCount: room.botCount,
-                    botDifficulty: room.botDifficulty,
-                    players
-                });
-
-                // Reset finished tracking
-                room.finishedPlayers = new Set();
-
-                // Synchronized start: send race_go after 4 seconds
-                // All clients setup during this time, then start simultaneously
-                setTimeout(() => {
-                    if (rooms.has(room.code) && room.state === 'racing') {
-                        broadcastToRoom(room, { type: 'race_go' });
-                        console.log(`Room ${room.code}: race_go sent!`);
-                    }
-                }, 4000);
-
-                console.log(`Room ${room.code}: race starting (4s countdown)...`);
-                break;
-            }
-
-            case 'car_update': {
-                const room = findPlayerRoom(playerId);
-                if (!room || room.state !== 'racing') return;
-
-                // Collect all car states and relay
-                const carStates = [msg.car];
-                if (msg.bots) carStates.push(...msg.bots);
-
-                broadcastToRoom(room, {
-                    type: 'game_state',
-                    cars: carStates
-                }, ws);
-                break;
-            }
-
-            case 'race_finished': {
-                const room = findPlayerRoom(playerId);
-                if (!room) return;
-
-                const player = room.players.get(playerId);
-                if (!player) return;
-
-                // Track finished player
-                room.finishedPlayers.add(playerId);
-
-                broadcastToRoom(room, {
-                    type: 'race_winner',
-                    slot: player.slot,
-                    name: player.name
-                });
-
-                console.log(`Room ${room.code}: ${player.name} finished! (${room.finishedPlayers.size}/${room.players.size})`);
-
-                // Check if all human players have finished
-                if (room.finishedPlayers.size >= room.players.size) {
-                    room.state = 'lobby';
-                    room.finishedPlayers = new Set();
-                    broadcastToRoom(room, { type: 'race_ended' });
-                    console.log(`Room ${room.code}: all finished, back to lobby`);
-                } else {
-                    // Fallback: reset to lobby after 30s even if not all finished
-                    clearTimeout(room._raceEndTimeout);
-                    room._raceEndTimeout = setTimeout(() => {
-                        if (rooms.has(room.code) && room.state === 'racing') {
-                            room.state = 'lobby';
-                            room.finishedPlayers = new Set();
-                            broadcastToRoom(room, { type: 'race_ended' });
-                            console.log(`Room ${room.code}: timeout, back to lobby`);
-                        }
-                    }, 30000);
-                }
-                break;
-            }
-        }
-    });
-
-    ws.on('close', () => {
-        removePlayerFromRoom(playerId);
-        console.log(`Player disconnected: #${playerId}`);
-    });
-
-    ws.on('error', () => {
-        removePlayerFromRoom(playerId);
-    });
-});
-
 function findPlayerRoom(playerId) {
     for (const room of rooms.values()) {
         if (room.players.has(playerId)) return room;
@@ -351,11 +116,233 @@ function findPlayerRoom(playerId) {
     return null;
 }
 
+// ---- Socket.IO Handling ----
+io.on('connection', (socket) => {
+    const playerId = nextPlayerId++;
+    socket._playerId = playerId;
+
+    console.log(`Player connected: #${playerId} via ${socket.conn.transport.name}`);
+
+    // Monitora upgrades de transporte (HTTP Polling -> WebSocket)
+    socket.conn.on('upgrade', () => {
+        console.log(`Player #${playerId} upgraded to ${socket.conn.transport.name}`);
+    });
+
+    // 1. Criar Sala
+    socket.on('create_room', (msg = {}) => {
+        removePlayerFromRoom(playerId);
+
+        const code = generateRoomCode();
+        const slot = 0;
+        const room = {
+            code,
+            hostId: playerId,
+            state: 'lobby',
+            trackIdx: 0,
+            botCount: 0,
+            botDifficulty: 'medio',
+            players: new Map(),
+            finishedPlayers: new Set()
+        };
+
+        room.players.set(playerId, {
+            id: playerId,
+            socket,
+            name: msg.playerName || 'Host',
+            slot,
+            isHost: true
+        });
+
+        rooms.set(code, room);
+
+        socket.emit('room_created', {
+            type: 'room_created',
+            code,
+            slot
+        });
+
+        console.log(`Room ${code} created by ${msg.playerName || 'Host'}`);
+    });
+
+    // 2. Entrar na Sala
+    socket.on('join_room', (msg = {}) => {
+        const code = msg.code?.toUpperCase();
+        const room = rooms.get(code);
+
+        if (!room) {
+            socket.emit('error_msg', { type: 'error', message: 'Sala não encontrada' });
+            return;
+        }
+
+        if (room.state !== 'lobby') {
+            socket.emit('error_msg', { type: 'error', message: 'Race already started' });
+            return;
+        }
+
+        if (room.players.size >= 4) {
+            socket.emit('error_msg', { type: 'error', message: 'Sala cheia (máx 4 jogadores)' });
+            return;
+        }
+
+        removePlayerFromRoom(playerId);
+
+        const slot = getAvailableSlot(room);
+        if (slot === -1) {
+            socket.emit('error_msg', { type: 'error', message: 'Sem slots disponíveis' });
+            return;
+        }
+
+        const playerName = msg.playerName || `Jogador ${slot + 1}`;
+
+        room.players.set(playerId, {
+            id: playerId,
+            socket,
+            name: playerName,
+            slot,
+            isHost: false
+        });
+
+        const playerList = [];
+        for (const p of room.players.values()) {
+            playerList.push({ name: p.name, slot: p.slot, isHost: p.isHost });
+        }
+
+        socket.emit('room_joined', {
+            type: 'room_joined',
+            code,
+            slot,
+            players: playerList
+        });
+
+        broadcastToRoom(room, {
+            type: 'player_joined',
+            name: playerName,
+            slot
+        }, socket);
+
+        console.log(`${playerName} joined room ${code} as slot ${slot}`);
+    });
+
+    // 3. Sair da Sala
+    socket.on('leave_room', () => {
+        removePlayerFromRoom(playerId);
+    });
+
+    // 4. Configurações do Host
+    socket.on('set_config', (msg = {}) => {
+        const room = findPlayerRoom(playerId);
+        if (!room || room.hostId !== playerId) return;
+
+        if (msg.config) {
+            if (msg.config.trackIdx !== undefined) room.trackIdx = msg.config.trackIdx;
+            if (msg.config.botCount !== undefined) room.botCount = msg.config.botCount;
+            if (msg.config.botDifficulty !== undefined) room.botDifficulty = msg.config.botDifficulty;
+
+            broadcastToRoom(room, {
+                type: 'config_updated',
+                config: {
+                    trackIdx: room.trackIdx,
+                    botCount: room.botCount,
+                    botDifficulty: room.botDifficulty
+                }
+            });
+        }
+    });
+
+    // 5. Iniciar Corrida
+    socket.on('start_game', () => {
+        const room = findPlayerRoom(playerId);
+        if (!room || room.hostId !== playerId) return;
+
+        room.state = 'racing';
+
+        const players = [];
+        for (const p of room.players.values()) {
+            players.push({ name: p.name, slot: p.slot, isHost: p.isHost });
+        }
+
+        broadcastToRoom(room, {
+            type: 'game_starting',
+            trackIdx: room.trackIdx,
+            botCount: room.botCount,
+            botDifficulty: room.botDifficulty,
+            players
+        });
+
+        room.finishedPlayers = new Set();
+
+        setTimeout(() => {
+            if (rooms.has(room.code) && room.state === 'racing') {
+                broadcastToRoom(room, { type: 'race_go' });
+                console.log(`Room ${room.code}: race_go sent!`);
+            }
+        }, 4000);
+
+        console.log(`Room ${room.code}: race starting (4s countdown)...`);
+    });
+
+    // 6. Atualização da Posição do Carro
+    socket.on('car_update', (msg = {}) => {
+        const room = findPlayerRoom(playerId);
+        if (!room || room.state !== 'racing') return;
+
+        const carStates = [];
+        if (msg.car) carStates.push(msg.car);
+        if (msg.bots) carStates.push(...msg.bots);
+
+        broadcastToRoom(room, {
+            type: 'game_state',
+            cars: carStates
+        }, socket);
+    });
+
+    // 7. Corrida Finalizada
+    socket.on('race_finished', () => {
+        const room = findPlayerRoom(playerId);
+        if (!room) return;
+
+        const player = room.players.get(playerId);
+        if (!player) return;
+
+        room.finishedPlayers.add(playerId);
+
+        broadcastToRoom(room, {
+            type: 'race_winner',
+            slot: player.slot,
+            name: player.name
+        });
+
+        console.log(`Room ${room.code}: ${player.name} finished! (${room.finishedPlayers.size}/${room.players.size})`);
+
+        if (room.finishedPlayers.size >= room.players.size) {
+            room.state = 'lobby';
+            room.finishedPlayers = new Set();
+            broadcastToRoom(room, { type: 'race_ended' });
+            console.log(`Room ${room.code}: all finished, back to lobby`);
+        } else {
+            clearTimeout(room._raceEndTimeout);
+            room._raceEndTimeout = setTimeout(() => {
+                if (rooms.has(room.code) && room.state === 'racing') {
+                    room.state = 'lobby';
+                    room.finishedPlayers = new Set();
+                    broadcastToRoom(room, { type: 'race_ended' });
+                    console.log(`Room ${room.code}: timeout, back to lobby`);
+                }
+            }, 30000);
+        }
+    });
+
+    // Desconexão
+    socket.on('disconnect', () => {
+        removePlayerFromRoom(playerId);
+        console.log(`Player disconnected: #${playerId}`);
+    });
+});
+
 // ---- Start Server ----
-// Adicionamos '0.0.0.0' para o Fly.io conseguir rotear os jogadores
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`\n🏎️  Ultimate Drift 2D Server`);
+    console.log(`\n🏎️  Ultimate Drift 2D Server (Socket.IO Ready)`);
     console.log(`   Local:   http://localhost:${PORT}`);
     console.log(`   Network: http://0.0.0.0:${PORT}`);
-    console.log(`\n   Pronto para corridas!\n`);
+    console.log(`\n   Pronto para conexões corporativas/proxy!\n`);
 });

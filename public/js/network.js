@@ -1,12 +1,12 @@
 // ============================================================
-// network.js — WebSocket client for online multiplayer
+// network.js — Socket.IO client for online multiplayer
 // ============================================================
 
 import { SERVER_URL } from './config.js';
 
 export class NetworkManager {
     constructor() {
-        this.ws = null;
+        this.socket = null;
         this.connected = false;
         this.roomCode = null;
         this.mySlot = -1;
@@ -28,156 +28,156 @@ export class NetworkManager {
     }
 
     /**
-     * Returns true only if the WebSocket is actually open.
+     * Returns true only if the Socket.IO client is actually connected.
      */
     get isConnected() {
-        return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+        return this.socket !== null && this.socket.connected;
     }
 
     /**
-     * Connect to the WebSocket server.
-     * Uses SERVER_URL from config.js if set, otherwise auto-detects from page host.
+     * Connect to the Socket.IO server.
+     * Uses SERVER_URL from config.js if set, otherwise falls back to current domain.
      */
     connect() {
         return new Promise((resolve, reject) => {
-            let url;
-            if (SERVER_URL) {
-                // Use configured server URL (for split deployment: Vercel + Render)
-                url = SERVER_URL;
-            } else {
-                // Auto-detect from current page (works when server serves frontend)
-                const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-                url = `${protocol}//${location.host}`;
-            }
+            let url = SERVER_URL || window.location.origin;
+
+            // Ajusta URLs legadas ws:// ou wss:// para http:// ou https:// se necessário
+            if (url.startsWith('ws://')) url = url.replace('ws://', 'http://');
+            if (url.startsWith('wss://')) url = url.replace('wss://', 'https://');
 
             try {
-                this.ws = new WebSocket(url);
+                // Instancia o io global injetado via CDN no index.html
+                this.socket = io(url, {
+                    transports: ['polling', 'websocket'], // Polling primeiro para furar o proxy
+                    reconnection: true
+                });
             } catch (e) {
                 reject(new Error('Falha ao conectar ao servidor'));
                 return;
             }
 
-            this.ws.onopen = () => {
+            // Evento de Conexão Bem-Sucedida
+            this.socket.on('connect', () => {
                 this.connected = true;
                 resolve();
-            };
+            });
 
-            this.ws.onclose = () => {
+            // Erro de Conexão Inicial
+            this.socket.on('connect_error', (err) => {
+                if (!this.connected) {
+                    reject(new Error('Erro de conexão com o servidor'));
+                }
+            });
+
+            // Desconexão
+            this.socket.on('disconnect', () => {
                 this.connected = false;
                 this.roomCode = null;
                 if (this.onDisconnect) this.onDisconnect();
-            };
+            });
 
-            this.ws.onerror = () => {
-                reject(new Error('Erro de conexão WebSocket'));
-            };
+            // ============================================================
+            // Eventos vindos do Servidor (server.js)
+            // ============================================================
 
-            this.ws.onmessage = (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
-                    this._handleMessage(msg);
-                } catch (e) {
-                    console.error('Failed to parse WS message:', e);
-                }
-            };
-        });
-    }
-
-    _handleMessage(msg) {
-        switch (msg.type) {
-            case 'room_created':
+            this.socket.on('room_created', (msg) => {
                 this.roomCode = msg.code;
                 this.mySlot = msg.slot;
                 this.isHost = true;
                 if (this.onRoomCreated) this.onRoomCreated(msg.code, msg.slot);
-                break;
+            });
 
-            case 'room_joined':
+            this.socket.on('room_joined', (msg) => {
                 this.roomCode = msg.code;
                 this.mySlot = msg.slot;
                 this.isHost = false;
                 if (this.onRoomJoined) this.onRoomJoined(msg.code, msg.slot, msg.players);
-                break;
+            });
 
-            case 'player_joined':
+            this.socket.on('player_joined', (msg) => {
                 if (this.onPlayerJoined) this.onPlayerJoined(msg.name, msg.slot);
-                break;
+            });
 
-            case 'player_left':
+            this.socket.on('player_left', (msg) => {
                 if (this.onPlayerLeft) this.onPlayerLeft(msg.slot);
-                break;
+            });
 
-            case 'config_updated':
+            this.socket.on('host_transferred', (msg) => {
+                if (msg.slot === this.mySlot) {
+                    this.isHost = true;
+                }
+            });
+
+            this.socket.on('config_updated', (msg) => {
                 if (this.onConfigUpdated) this.onConfigUpdated(msg.config);
-                break;
+            });
 
-            case 'game_starting':
+            this.socket.on('game_starting', (msg) => {
                 if (this.onGameStarting) this.onGameStarting(msg);
-                break;
+            });
 
-            case 'game_state':
+            this.socket.on('game_state', (msg) => {
                 if (this.onGameState) this.onGameState(msg.cars);
-                break;
+            });
 
-            case 'race_winner':
+            this.socket.on('race_winner', (msg) => {
                 if (this.onRaceWinner) this.onRaceWinner(msg.slot, msg.name);
-                break;
+            });
 
-            case 'race_ended':
+            this.socket.on('race_ended', () => {
                 if (this.onRaceEnded) this.onRaceEnded();
-                break;
+            });
 
-            case 'race_go':
+            this.socket.on('race_go', () => {
                 if (this.onRaceGo) this.onRaceGo();
-                break;
+            });
 
-            case 'error':
+            this.socket.on('error_msg', (msg) => {
                 if (this.onError) this.onError(msg.message);
-                break;
-        }
+            });
+        });
     }
 
-    _send(obj) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(obj));
-        }
-    }
+    // ============================================================
+    // Envio de Eventos para o Servidor
+    // ============================================================
 
     createRoom(playerName) {
-        this._send({ type: 'create_room', playerName });
+        if (this.socket) this.socket.emit('create_room', { playerName });
     }
 
     joinRoom(code, playerName) {
-        this._send({ type: 'join_room', code: code.toUpperCase(), playerName });
+        if (this.socket) this.socket.emit('join_room', { code: code.toUpperCase(), playerName });
     }
 
     leaveRoom() {
-        this._send({ type: 'leave_room' });
+        if (this.socket) this.socket.emit('leave_room');
         this.roomCode = null;
         this.mySlot = -1;
         this.isHost = false;
     }
 
     setConfig(config) {
-        this._send({ type: 'set_config', config });
+        if (this.socket) this.socket.emit('set_config', { config });
     }
 
     startGame() {
-        this._send({ type: 'start_game' });
+        if (this.socket) this.socket.emit('start_game');
     }
 
     sendCarState(carState, botStates = []) {
-        this._send({ type: 'car_update', car: carState, bots: botStates });
+        if (this.socket) this.socket.emit('car_update', { car: carState, bots: botStates });
     }
 
     sendFinished(slot) {
-        this._send({ type: 'race_finished', slot });
+        if (this.socket) this.socket.emit('race_finished', { slot });
     }
 
     disconnect() {
-        if (this.ws) {
-            this.ws.close();
-            this.ws = null;
+        if (this.socket) {
+            this.socket.disconnect();
+            this.socket = null;
         }
         this.connected = false;
         this.roomCode = null;
