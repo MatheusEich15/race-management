@@ -47,10 +47,17 @@ export class NetworkManager {
             if (url.startsWith('wss://')) url = url.replace('wss://', 'https://');
 
             try {
-                // Instancia o io global injetado via CDN no index.html
+                // Instancia o io global injetado via CDN no index.html.
+                // path: '/socket.io' garante que o Vercel Rewrite intercepte
+                // as requisições e as encaminhe para a Serverless Function proxy.
+                // transports: polling primeiro para furar firewalls corporativos.
                 this.socket = io(url, {
-                    transports: ['polling', 'websocket'], // Polling primeiro para furar o proxy
-                    reconnection: true
+                    path: '/socket.io',
+                    transports: ['polling', 'websocket'],
+                    reconnection: true,
+                    reconnectionAttempts: 5,
+                    reconnectionDelay: 1000,
+                    timeout: 20000,
                 });
             } catch (e) {
                 reject(new Error('Falha ao conectar ao servidor'));
@@ -65,8 +72,9 @@ export class NetworkManager {
 
             // Erro de Conexão Inicial
             this.socket.on('connect_error', (err) => {
+                console.warn('[NetworkManager] connect_error:', err.message);
                 if (!this.connected) {
-                    reject(new Error('Erro de conexão com o servidor'));
+                    reject(new Error(`Erro de conexão: ${err.message}`));
                 }
             });
 

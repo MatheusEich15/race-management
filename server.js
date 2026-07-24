@@ -13,10 +13,18 @@ const server = http.createServer(app);
 // ---- Socket.IO com suporte a Polling (Proxy Bypass) e WebSocket ----
 const io = new Server(server, {
     cors: {
-        origin: '*',
-        methods: ['GET', 'POST', 'OPTIONS']
+        // Aceita tanto o Vercel (prod) quanto localhost (dev)
+        origin: [
+            'https://race-management-lovat.vercel.app',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+        ],
+        methods: ['GET', 'POST', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        credentials: true,
     },
-    transports: ['polling', 'websocket'] // Inicia em polling e faz upgrade se permitido
+    transports: ['polling', 'websocket'], // Inicia em polling e faz upgrade se permitido
+    allowEIO3: true, // Compatibilidade com clientes mais antigos
 });
 
 const PORT = process.env.PORT || 3000;
