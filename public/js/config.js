@@ -9,5 +9,5 @@
 // Leave empty ('') to auto-detect (works when frontend+server are on same host)
 // ============================================================
 
-export const SERVER_URL = 'https://ultimate-drift-2d.fly.dev';
+export const SERVER_URL = '';
 // Example: export const SERVER_URL = 'wss://ultimate-drift-xxx.onrender.com';
