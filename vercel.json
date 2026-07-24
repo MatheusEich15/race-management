@@ -2,7 +2,10 @@
   "buildCommand": null,
   "outputDirectory": "public",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/socket.io/:path*",
+      "destination": "https://ultimate-drift-2d.fly.dev/socket.io/:path*"
+    }
   ],
   "headers": [
     {
