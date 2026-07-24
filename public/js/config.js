@@ -1,13 +1,18 @@
 // ============================================================
 // config.js — Deployment configuration
 // ============================================================
-// When deploying frontend and server separately:
-//   1. Deploy server.js on Render/Railway → get URL (e.g. https://ultimate-drift-xxx.onrender.com)
-//   2. Set SERVER_URL below to that URL (use wss:// for HTTPS, ws:// for HTTP)
-//   3. Deploy frontend on Vercel
+// ARQUITETURA ATUAL (Rede Corporativa com Firewall):
 //
-// Leave empty ('') to auto-detect (works when frontend+server are on same host)
+//   Browser → Vercel (race-management-lovat.vercel.app)
+//       └─ /socket.io/* → [Vercel Rewrite] → /api/socketio (Serverless Function)
+//           └─ [Proxy HTTP] → https://ultimate-drift-2d.fly.dev/socket.io/*
+//
+// SERVER_URL deve ser '' (vazio) para que o Socket.IO use a mesma
+// origem do Vercel. O rewrite do vercel.json encaminha /socket.io/*
+// para a Serverless Function que faz o proxy para o Fly.io.
+//
+// Isso evita que o browser acesse *.fly.dev diretamente (bloqueado pelo firewall).
 // ============================================================
 
 export const SERVER_URL = '';
-// Example: export const SERVER_URL = 'wss://ultimate-drift-xxx.onrender.com';
+// Exemplo deploy direto (sem proxy): export const SERVER_URL = 'https://ultimate-drift-2d.fly.dev';
