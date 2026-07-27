@@ -20,7 +20,7 @@ const io = new Server(server, {
             'http://127.0.0.1:3000',
         ],
         methods: ['GET', 'POST', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
         credentials: true,
     },
     transports: ['polling', 'websocket'], // Inicia em polling e faz upgrade se permitido
