@@ -47,15 +47,16 @@ export class NetworkManager {
             if (url.startsWith('wss://')) url = url.replace('wss://', 'https://');
 
             try {
-                // Instancia o io global injetado via CDN no index.html.
-                // path: '/socket.io' garante que o Vercel Rewrite intercepte
-                // as requisições e as encaminhe para a Serverless Function proxy.
-                // transports: polling primeiro para furar firewalls corporativos.
+                // CRÍTICO: Vercel Serverless Functions NÃO sustentam WebSocket
+                // persistente. Forçar apenas polling e desabilitar upgrade
+                // evita que a conexão morra no meio do handshake.
                 this.socket = io(url, {
                     path: '/socket.io',
-                    transports: ['polling', 'websocket'],
+                    transports: ['polling'],
+                    upgrade: false,
+                    withCredentials: true,
                     reconnection: true,
-                    reconnectionAttempts: 5,
+                    reconnectionAttempts: Infinity,
                     reconnectionDelay: 1000,
                     timeout: 20000,
                 });

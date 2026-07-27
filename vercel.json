@@ -1,7 +1,12 @@
 {
   "rewrites": [
-    { "source": "/socket.io(.*)", "destination": "/api/socketio" }
+    { "source": "/socket.io/:path*", "destination": "/api/socketio" }
   ],
+  "functions": {
+    "api/socketio.js": {
+      "maxDuration": 30
+    }
+  },
   "headers": [
     {
       "source": "/js/(.*)",
