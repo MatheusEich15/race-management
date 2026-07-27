@@ -4,56 +4,42 @@
 // Proxies Socket.IO polling requests from Vercel edge to the
 // Fly.io backend (ultimate-drift-2d.fly.dev).
 // This bypasses corporate firewalls that block *.fly.dev directly.
+//
+// IMPORTANT: Uses CommonJS (module.exports) — NOT ESM export default.
+// Vercel treats files as CommonJS unless package.json has "type":"module".
 // ============================================================
 
 const BACKEND_URL = 'https://ultimate-drift-2d.fly.dev';
 
-export const config = {
+// Vercel config: disable body parser so we can read the raw stream ourselves
+module.exports.config = {
     api: {
-        // Disable Vercel's body parser so we can stream the raw body
         bodyParser: false,
-        // Allow larger payloads for game state updates
         responseLimit: false,
     },
 };
 
-export default async function handler(req, res) {
-    // Build the full target URL: /api/socketio → /socket.io/
-    // e.g. GET /api/socketio?EIO=4&transport=polling → https://fly.dev/socket.io/?EIO=4&transport=polling
+module.exports = async (req, res) => {
+    // req.url arrives as "/api/socketio?EIO=4&transport=polling&..."
+    // We need to forward it as "/socket.io/?EIO=4&transport=polling&..."
     const queryString = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
     const targetUrl = `${BACKEND_URL}/socket.io/${queryString}`;
 
-    // Forward the relevant headers, stripping Vercel-specific ones
-    const forwardHeaders = {};
-    const skipHeaders = new Set([
-        'host', 'connection', 'transfer-encoding', 'te',
-        'trailers', 'keep-alive', 'upgrade', 'proxy-authorization',
-        'proxy-connection', 'x-forwarded-for', 'x-forwarded-proto',
-        'x-forwarded-host', 'x-vercel-id', 'x-vercel-deployment-url',
-        'x-vercel-forwarded-for', 'x-real-ip',
-    ]);
-
-    for (const [key, value] of Object.entries(req.headers)) {
-        if (!skipHeaders.has(key.toLowerCase())) {
-            forwardHeaders[key] = value;
-        }
-    }
-
-    // Add CORS headers so the browser accepts responses from Vercel domain
+    // ── CORS ─────────────────────────────────────────────────
     const origin = req.headers['origin'] || '*';
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
 
-    // Handle preflight (OPTIONS)
+    // Handle preflight
     if (req.method === 'OPTIONS') {
         res.status(204).end();
         return;
     }
 
     try {
-        // Read the raw request body for POST requests (Socket.IO polling data)
+        // ── Read raw body for POST (Socket.IO polling data) ──
         let body = undefined;
         if (req.method === 'POST') {
             body = await new Promise((resolve, reject) => {
@@ -64,7 +50,23 @@ export default async function handler(req, res) {
             });
         }
 
-        // Proxy the request to the Fly.io backend
+        // ── Strip Vercel-specific / hop-by-hop headers ───────
+        const skipHeaders = new Set([
+            'host', 'connection', 'transfer-encoding', 'te',
+            'trailers', 'keep-alive', 'upgrade', 'proxy-authorization',
+            'proxy-connection', 'x-forwarded-for', 'x-forwarded-proto',
+            'x-forwarded-host', 'x-vercel-id', 'x-vercel-deployment-url',
+            'x-vercel-forwarded-for', 'x-real-ip',
+        ]);
+
+        const forwardHeaders = {};
+        for (const [key, value] of Object.entries(req.headers)) {
+            if (!skipHeaders.has(key.toLowerCase())) {
+                forwardHeaders[key] = value;
+            }
+        }
+
+        // ── Forward to Fly.io ─────────────────────────────────
         const response = await fetch(targetUrl, {
             method: req.method,
             headers: {
@@ -73,33 +75,29 @@ export default async function handler(req, res) {
                 origin: 'https://ultimate-drift-2d.fly.dev',
             },
             body: body || undefined,
-            // Important: do NOT follow redirects automatically
             redirect: 'manual',
         });
 
-        // Forward the response status and headers back to the client
+        // ── Relay response status ─────────────────────────────
         res.status(response.status);
 
-        const responseHeadersToSkip = new Set([
+        const skipResponseHeaders = new Set([
             'transfer-encoding', 'connection', 'keep-alive',
             'trailer', 'te', 'upgrade',
         ]);
 
         for (const [key, value] of response.headers.entries()) {
-            if (!responseHeadersToSkip.has(key.toLowerCase())) {
+            if (!skipResponseHeaders.has(key.toLowerCase())) {
                 res.setHeader(key, value);
             }
         }
 
-        // Stream the response body back to the client
+        // ── Relay response body ───────────────────────────────
         const responseBody = await response.arrayBuffer();
         res.end(Buffer.from(responseBody));
 
     } catch (err) {
         console.error('[socketio-proxy] Error:', err.message);
-        res.status(502).json({
-            error: 'Proxy error',
-            message: err.message,
-        });
+        res.status(502).json({ error: 'Proxy error', message: err.message });
     }
-}
+};
