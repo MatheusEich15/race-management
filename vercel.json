@@ -1,6 +1,4 @@
 {
-  "buildCommand": null,
-  "outputDirectory": "public",
   "rewrites": [
     { "source": "/socket.io", "destination": "/api/socketio" },
     { "source": "/socket.io/:path*", "destination": "/api/socketio" }
