@@ -120,6 +120,7 @@ module.exports = async function handler(req, res) {
 
     res.status(upstream.status);
     const buffer = Buffer.from(await upstream.arrayBuffer());
+    res.setHeader("Content-Length", buffer.length);
     res.end(buffer);
   } catch (err) {
     console.error("[socketio-proxy] falha ao contatar o Fly.io:", err);
