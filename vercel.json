@@ -1,25 +1,8 @@
 {
   "rewrites": [
-    { "source": "/socket.io/:path*", "destination": "/api/socketio" }
-  ],
-  "functions": {
-    "api/socketio.js": {
-      "maxDuration": 30
-    }
-  },
-  "headers": [
     {
-      "source": "/js/(.*)",
-      "headers": [
-        { "key": "Content-Type", "value": "application/javascript" }
-      ]
-    },
-    {
-      "source": "/api/socketio",
-      "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, OPTIONS" }
-      ]
+      "source": "/socket.io/:path*",
+      "destination": "https://ultimate-drift-2d.fly.dev/socket.io/:path*"
     }
   ]
 }
