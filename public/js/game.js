@@ -16,7 +16,7 @@ import {
 
 
 // ---- Constants ----
-const TOTAL_LAPS = 3;
+const DEFAULT_TOTAL_LAPS = 3;
 const CANVAS_W = 1400;
 const CANVAS_H = 850;
 const RACE_END_TIMEOUT = 20000; // 20s after first finisher for others
@@ -29,6 +29,7 @@ const ctx = canvas.getContext('2d');
 let state = {
     mode: null,          // 'solo' | 'local' | 'online'
     trackIdx: 0,
+    totalLaps: DEFAULT_TOTAL_LAPS,
     cars: [],
     botAIs: [],
     localSlots: [],      // which car slots are controlled locally
@@ -60,6 +61,7 @@ let state = {
     localBotDifficulty: 'medio',
     localTrackIdx: 0,
     lastNetSendTime: 0,
+    lastLocalInput: { up: false, down: false, left: false, right: false, nitro: false },
 };
 
 // ---- Input (Anti-Ghosting) ----
@@ -130,7 +132,7 @@ function computeRanking() {
             slot: car.slot,
             name: getCarName(car),
             color: car.color,
-            lap: Math.min(car.currentLap, TOTAL_LAPS),
+            lap: Math.min(car.currentLap, state.totalLaps),
             finished: car.finished,
             finishTime: car.finishTime,
             progress: progress
@@ -336,8 +338,10 @@ async function joinRoom(code, name) {
 }
 
 function setupNetworkCallbacks() {
-    net.onRoomCreated = (code, slot) => {
-        lobbyPlayers = [{ name: document.getElementById('input-online-name')?.value?.trim() || 'Host', slot, isHost: true }];
+    net.onRoomCreated = (code, slot, players) => {
+        lobbyPlayers = players?.length
+            ? players
+            : [{ name: document.getElementById('input-online-name')?.value?.trim() || 'Host', slot, isHost: true }];
         setRoomCode(code);
         updateLobbyPlayers(lobbyPlayers);
 
@@ -387,7 +391,26 @@ function setupNetworkCallbacks() {
         const player = lobbyPlayers.find(p => p.slot === slot);
         lobbyPlayers = lobbyPlayers.filter(p => p.slot !== slot);
         updateLobbyPlayers(lobbyPlayers);
+        if (state.running && state.mode === 'online') {
+            state.cars = state.cars.filter(car => car.slot !== slot);
+            state.localSlots = state.localSlots.filter(item => item !== slot);
+            state.remoteSlots = state.remoteSlots.filter(item => item !== slot);
+            state.finishOrder = state.finishOrder.filter(entry => entry.slot !== slot);
+            buildHUD(state.cars, {
+                totalLaps: state.totalLaps,
+                mode: state.mode,
+                botSlots: state.botSlots,
+                localSlots: state.localSlots,
+            });
+        }
         if (player) showToast(`${player.name} left the room`);
+    };
+
+    net.onHostTransferred = (slot, players) => {
+        if (players.length) lobbyPlayers = players;
+        else lobbyPlayers = lobbyPlayers.map(player => ({ ...player, isHost: player.slot === slot }));
+        updateLobbyPlayers(lobbyPlayers);
+        if (slot === net.mySlot) showToast('You are now the room host');
     };
 
     net.onConfigUpdated = (config) => {
@@ -411,30 +434,59 @@ function setupNetworkCallbacks() {
     };
 
     net.onRaceGo = () => {
-        // Server says GO — start the synchronized countdown now
-        if (state.waitingForGo) {
-            state.waitingForGo = false;
-            beginCountdown();
-        }
+        state.waitingForGo = false;
+        state.gameStarted = true;
+        state.raceStartTime = performance.now();
+        if (state.countdownIntervalId) clearInterval(state.countdownIntervalId);
+        state.countdownIntervalId = null;
     };
 
-    net.onGameState = (carStates) => {
+    net.onGameState = (carStates, snapshot) => {
         if (!state.running) return;
+        const extrapolationTicks = net.snapshotAgeTicks(snapshot.serverTime);
         for (const cs of carStates) {
-            if (cs.slot === net.mySlot) continue;
             const car = state.cars.find(c => c.slot === cs.slot);
-            if (car && car.isRemote) {
-                car.applyNetState(cs);
-            }
+            if (!car) continue;
+            if (cs.slot === net.mySlot) car.reconcileNetState(cs, extrapolationTicks);
+            else car.applyNetState({
+                ...cs,
+                x: cs.x + cs.vx * extrapolationTicks,
+                y: cs.y + cs.vy * extrapolationTicks,
+            });
         }
     };
 
-    net.onRaceWinner = (slot, name) => {
-        const car = state.cars.find(c => c.slot === slot);
+    net.onRaceWinner = (result) => {
+        const car = state.cars.find(c => c.slot === result.slot);
         if (car) {
             car.finished = true;
             car.isGhost = true;
             if (!car.finishTime) car.finishTime = performance.now();
+        }
+        if (!state.finishOrder.some(entry => entry.slot === result.slot)) {
+            state.finishOrder.splice(Math.max(0, result.rank - 1), 0, {
+                slot: result.slot,
+                name: result.name,
+                time: result.time,
+                color: result.color || car?.color || PLAYER_COLORS[result.slot],
+            });
+        }
+        if (state.finishOrder.length === 1) state.raceEndTime = performance.now() + RACE_END_TIMEOUT;
+    };
+
+    net.onRaceComplete = (results, players) => {
+        state.finishOrder = results;
+        state.raceFullyEnded = true;
+        if (players.length) {
+            lobbyPlayers = players;
+            updateLobbyPlayers(lobbyPlayers);
+        }
+        for (const result of results) {
+            const car = state.cars.find(item => item.slot === result.slot);
+            if (car) {
+                car.finished = true;
+                car.isGhost = true;
+            }
         }
     };
 
@@ -470,6 +522,7 @@ function selectTrack(idx) {
 
 function startSoloGame() {
     state.mode = 'solo';
+    state.totalLaps = DEFAULT_TOTAL_LAPS;
     // Read current select values directly (do not rely solely on change events)
     const soloBotsEl = document.getElementById('solo-bots');
     const soloDiffEl = document.getElementById('solo-diff');
@@ -517,6 +570,7 @@ function startSoloGame() {
 
 function startLocalGame() {
     state.mode = 'local';
+    state.totalLaps = DEFAULT_TOTAL_LAPS;
     // Read current select values directly (do not rely solely on change events)
     const localBotsEl = document.getElementById('local-bots');
     const localDiffEl = document.getElementById('local-diff');
@@ -572,6 +626,7 @@ function startLocalGame() {
  */
 function setupOnlineGame(config) {
     state.trackIdx = config.trackIdx;
+    state.totalLaps = Number.isInteger(config.totalLaps) ? config.totalLaps : DEFAULT_TOTAL_LAPS;
     const track = TRACKS[state.trackIdx];
     state.cachedSegments = precomputeBezierPath(state.trackIdx);
 
@@ -581,55 +636,30 @@ function setupOnlineGame(config) {
     state.botSlots = [];
     state.remoteSlots = [];
 
-    for (const p of config.players) {
+    lobbyPlayers = config.players || lobbyPlayers;
+    for (const p of config.participants) {
         const car = new DriftCar(p.slot);
         const pos = track.startPositions[p.slot];
         car.reset(pos.x, pos.y, track.startAngle);
 
-        if (p.slot === net.mySlot) {
+        if (p.isBot) {
+            car.isBot = true;
+            car.isRemote = true;
+            state.botSlots.push(p.slot);
+        } else if (p.slot === net.mySlot) {
             car.isLocal = true;
         } else {
             car.isRemote = true;
+            state.remoteSlots.push(p.slot);
         }
         state.cars.push(car);
-    }
-
-    if (net.isHost && config.botCount > 0) {
-        const bc = BOT_CONFIGS[config.botDifficulty] || BOT_CONFIGS.medio;
-        const usedSlots = config.players.map(p => p.slot);
-        let botSlotIdx = 0;
-        for (let s = 0; s < 4 && botSlotIdx < config.botCount; s++) {
-            if (!usedSlots.includes(s)) {
-                const bot = new DriftCar(s);
-                bot.isBot = true;
-                bot.maxSpeed = bc.maxSpeed;
-                const pos = track.startPositions[s];
-                bot.reset(pos.x, pos.y, track.startAngle);
-                state.cars.push(bot);
-                state.botSlots.push(s);
-
-                const ai = new BotAI(config.botDifficulty);
-                ai.findNearestNode(pos.x, pos.y, state.cachedSegments);
-                state.botAIs.push(ai);
-                botSlotIdx++;
-            }
-        }
     }
 
     state.cars.sort((a, b) => a.slot - b.slot);
 
     // Start rendering but wait for race_go before countdown
     startRace();
-    state.waitingForGo = true; // Show "WAITING..." until server sends race_go
-
-    // Fallback: if race_go never arrives, start anyway after 6 seconds
-    setTimeout(() => {
-        if (state.waitingForGo) {
-            console.warn('race_go not received — starting countdown via fallback');
-            state.waitingForGo = false;
-            beginCountdown();
-        }
-    }, 6000);
+    beginServerCountdown(config.startAt);
 }
 
 /**
@@ -649,7 +679,7 @@ function startRace() {
     state.waitingForGo = false; // Reset so solo/local games don't show "GET READY..."
 
     buildHUD(state.cars, {
-        totalLaps: TOTAL_LAPS,
+        totalLaps: state.totalLaps,
         mode: state.mode,
         botSlots: state.botSlots,
         localSlots: state.localSlots,
@@ -690,6 +720,24 @@ function beginCountdown() {
     }, 1000);
 }
 
+function beginServerCountdown(startAt) {
+    if (state.countdownIntervalId) clearInterval(state.countdownIntervalId);
+    state.waitingForGo = false;
+    const updateCountdown = () => {
+        if (!state.running || state.gameStarted) return;
+        const remaining = startAt - (Date.now() + net.serverClockOffset);
+        state.countdown = Math.max(0, Math.ceil(remaining / 1000) - 1);
+        if (remaining < -1000) {
+            state.gameStarted = true;
+            state.raceStartTime = performance.now();
+            clearInterval(state.countdownIntervalId);
+            state.countdownIntervalId = null;
+        }
+    };
+    updateCountdown();
+    state.countdownIntervalId = setInterval(updateCountdown, 100);
+}
+
 /**
  * Return to menu (solo/local) or lobby (online).
  */
@@ -727,7 +775,7 @@ function gameLoop() {
     const trackData = {
         trackIdx: state.trackIdx,
         cachedSegments: state.cachedSegments,
-        totalLaps: TOTAL_LAPS,
+        totalLaps: state.totalLaps,
     };
 
     // ---- Update ----
@@ -744,6 +792,7 @@ function gameLoop() {
 
             const keyMap = (state.mode === 'online' || i === 0) ? P1_KEYS : P2_KEYS;
             const input = getLocalInput(keyMap);
+            if (state.mode === 'online') state.lastLocalInput = input;
 
             if (car.isGhost) {
                 // Ghost: update position from input but no lap counting
@@ -766,7 +815,7 @@ function gameLoop() {
         });
 
         // Update bot cars (only non-finished)
-        state.botSlots.forEach((slot, i) => {
+        if (state.mode !== 'online') state.botSlots.forEach((slot, i) => {
             const car = state.cars.find(c => c.slot === slot);
             const ai = state.botAIs[i];
             if (!car || !ai || car.finished) return;
@@ -780,10 +829,10 @@ function gameLoop() {
         });
 
         // Collisions (skips ghost cars via physics.js)
-        handleAllCollisions(state.cars, state.particles);
+        if (state.mode !== 'online') handleAllCollisions(state.cars, state.particles);
 
         // ---- Track finish order ----
-        for (const car of state.cars) {
+        if (state.mode !== 'online') for (const car of state.cars) {
             if (car.finished && !state.finishOrder.find(f => f.slot === car.slot)) {
                 car.isGhost = true;
                 const name = getCarName(car);
@@ -800,14 +849,11 @@ function gameLoop() {
                     state.raceEndTime = performance.now() + RACE_END_TIMEOUT;
                 }
 
-                if (state.mode === 'online' && car.isLocal) {
-                    net.sendFinished(car.slot);
-                }
             }
         }
 
         // ---- Check if race fully ended ----
-        if (state.finishOrder.length > 0) {
+        if (state.mode !== 'online' && state.finishOrder.length > 0) {
             const allFinished = state.cars.every(c => c.finished);
             const timeout = performance.now() > state.raceEndTime;
 
@@ -827,21 +873,14 @@ function gameLoop() {
         }
 
         computeRanking();
-        state.cars.forEach((car, i) => updateHUD(i, car, TOTAL_LAPS));
+        state.cars.forEach((car, i) => updateHUD(i, car, state.totalLaps));
 
         // Network: send state (throttled to ~30Hz / every 33ms)
         if (state.mode === 'online' && state.gameStarted) {
             const now = performance.now();
             if (now - state.lastNetSendTime >= 33) {
                 state.lastNetSendTime = now;
-                const myCar = state.cars.find(c => c.slot === net.mySlot);
-                if (myCar) {
-                    const botStates = state.botSlots.map(slot => {
-                        const bc = state.cars.find(c => c.slot === slot);
-                        return bc ? bc.serialize() : null;
-                    }).filter(Boolean);
-                    net.sendCarState(myCar.serialize(), botStates);
-                }
+                net.sendInput(state.lastLocalInput);
             }
         }
     }
@@ -1008,7 +1047,7 @@ function drawRanking() {
         } else {
             ctx.fillStyle = '#7f8c8d';
             ctx.font = '12px "Outfit", sans-serif';
-            ctx.fillText(`L${entry.lap}/${TOTAL_LAPS}`, panelX + panelW - 10, centerY);
+            ctx.fillText(`L${entry.lap}/${state.totalLaps}`, panelX + panelW - 10, centerY);
         }
         ctx.textAlign = 'left';
     });
@@ -1088,7 +1127,7 @@ function drawPodiumOverlay() {
 
     ctx.fillStyle = '#5a6270';
     ctx.font = '16px "Outfit", sans-serif';
-    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${TOTAL_LAPS} laps`, CANVAS_W / 2, 115);
+    ctx.fillText(TRACKS[state.trackIdx].name + ` — ${state.totalLaps} laps`, CANVAS_W / 2, 115);
 
     const medals = ['🥇', '🥈', '🥉', ''];
     const posLabels = ['1st PLACE', '2nd PLACE', '3rd PLACE', '4th PLACE'];

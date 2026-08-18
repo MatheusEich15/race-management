@@ -91,9 +91,13 @@ export function handleCarCollision(c1, c2, particles) {
     const distance = Math.sqrt(dx * dx + dy * dy);
     const minDist = c1.radius + c2.radius;
 
-    if (distance < minDist && distance > 0.01) {
-        const nx = dx / distance;
-        const ny = dy / distance;
+    if (distance < minDist) {
+        const safeDistance = Math.max(distance, 0.01);
+        const relativeVx = c1.vx - c2.vx;
+        const relativeVy = c1.vy - c2.vy;
+        const relativeSpeed = Math.hypot(relativeVx, relativeVy);
+        const nx = distance > 0.01 ? dx / safeDistance : (relativeSpeed > 0.01 ? relativeVx / relativeSpeed : 1);
+        const ny = distance > 0.01 ? dy / safeDistance : (relativeSpeed > 0.01 ? relativeVy / relativeSpeed : 0);
         const overlap = minDist - distance;
 
         // Separate cars
@@ -105,17 +109,21 @@ export function handleCarCollision(c1, c2, particles) {
         // Impulse-based velocity exchange
         const kx = c1.vx - c2.vx;
         const ky = c1.vy - c2.vy;
-        const p = (nx * kx + ny * ky);
+        const p = Math.max(0, nx * kx + ny * ky);
         const pushForce = 1.5;
 
-        c1.vx -= p * nx * pushForce;
-        c1.vy -= p * ny * pushForce;
-        c2.vx += p * nx * pushForce;
-        c2.vy += p * ny * pushForce;
+        if (p > 0) {
+            c1.vx -= p * nx * pushForce;
+            c1.vy -= p * ny * pushForce;
+            c2.vx += p * nx * pushForce;
+            c2.vy += p * ny * pushForce;
+        }
 
         // Reduce speed (less aggressive than original 0.3)
-        c1.speed *= 0.55;
-        c2.speed *= 0.55;
+        if (p > 0) {
+            c1.speed *= 0.55;
+            c2.speed *= 0.55;
+        }
 
         // Spark particles at collision point
         if (particles) {
