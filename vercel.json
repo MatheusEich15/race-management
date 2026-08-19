@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://race-management-i09o.onrender.com/:path*",
+      "permanent": false
+    }
+  ]
+}
