@@ -7,6 +7,7 @@ import { DriftCar } from './car.js';
 import { BotAI, BOT_CONFIGS } from './bot.js';
 import { handleAllCollisions } from './physics.js';
 import { NetworkManager } from './network.js';
+import { FixedStepClock } from './fixed-step.js';
 import {
     showSection, showMenu, hideMenu, setFlow, getFlow,
     buildHUD, updateHUD, buildTrackGrid,
@@ -20,6 +21,7 @@ const DEFAULT_TOTAL_LAPS = 3;
 const CANVAS_W = 1400;
 const CANVAS_H = 850;
 const RACE_END_TIMEOUT = 20000; // 20s after first finisher for others
+const MAX_PENDING_INPUTS = 240;
 
 // ---- DOM ----
 const canvas = document.getElementById('gameCanvas');
@@ -60,8 +62,9 @@ let state = {
     localBotCount: 0,
     localBotDifficulty: 'medio',
     localTrackIdx: 0,
-    lastNetSendTime: 0,
-    lastLocalInput: { up: false, down: false, left: false, right: false, nitro: false },
+    pendingInputs: [],
+    simulationClock: new FixedStepClock(),
+    lastFrameTime: 0,
 };
 
 // ---- Input (Anti-Ghosting) ----
@@ -437,22 +440,31 @@ function setupNetworkCallbacks() {
         state.waitingForGo = false;
         state.gameStarted = true;
         state.raceStartTime = performance.now();
+        state.simulationClock.reset();
+        state.lastFrameTime = performance.now();
         if (state.countdownIntervalId) clearInterval(state.countdownIntervalId);
         state.countdownIntervalId = null;
     };
 
     net.onGameState = (carStates, snapshot) => {
         if (!state.running) return;
-        const extrapolationTicks = net.snapshotAgeTicks(snapshot.serverTime);
+        const trackData = {
+            trackIdx: state.trackIdx,
+            cachedSegments: state.cachedSegments,
+            totalLaps: state.totalLaps,
+            effects: false,
+            updateRaceProgress: false,
+        };
         for (const cs of carStates) {
             const car = state.cars.find(c => c.slot === cs.slot);
             if (!car) continue;
-            if (cs.slot === net.mySlot) car.reconcileNetState(cs, extrapolationTicks);
-            else car.applyNetState({
-                ...cs,
-                x: cs.x + cs.vx * extrapolationTicks,
-                y: cs.y + cs.vy * extrapolationTicks,
-            });
+            if (cs.slot === net.mySlot) {
+                const acknowledgedSeq = Number.isSafeInteger(cs.inputSeq) ? cs.inputSeq : 0;
+                state.pendingInputs = state.pendingInputs.filter(command => command.seq > acknowledgedSeq);
+                car.reconcilePredictedState(cs, state.pendingInputs, trackData);
+            } else {
+                car.pushNetSnapshot(cs, snapshot.serverTime);
+            }
         }
     };
 
@@ -635,6 +647,7 @@ function setupOnlineGame(config) {
     state.localSlots = [net.mySlot];
     state.botSlots = [];
     state.remoteSlots = [];
+    state.pendingInputs = [];
 
     lobbyPlayers = config.players || lobbyPlayers;
     for (const p of config.participants) {
@@ -677,6 +690,8 @@ function startRace() {
     state.gameStarted = false;
     state.running = true;
     state.waitingForGo = false; // Reset so solo/local games don't show "GET READY..."
+    state.simulationClock.reset();
+    state.lastFrameTime = performance.now();
 
     buildHUD(state.cars, {
         totalLaps: state.totalLaps,
@@ -753,6 +768,9 @@ function returnToMenuScreen() {
         cancelAnimationFrame(state.animFrameId);
         state.animFrameId = null;
     }
+    state.pendingInputs = [];
+    state.simulationClock.reset();
+    state.lastFrameTime = 0;
     Object.keys(keys).forEach(k => keys[k] = false);
 
     if (state.mode === 'online') {
@@ -764,126 +782,124 @@ function returnToMenuScreen() {
 
 // ---- Game Loop ----
 
-function gameLoop() {
+function updateSimulationTick() {
+    const trackData = {
+        trackIdx: state.trackIdx,
+        cachedSegments: state.cachedSegments,
+        totalLaps: state.totalLaps,
+        updateRaceProgress: state.mode !== 'online',
+    };
+
+    state.localSlots.forEach((slot, i) => {
+        const car = state.cars.find(c => c.slot === slot);
+        if (!car) return;
+
+        if (car.finished && !car.isGhost) car.isGhost = true;
+
+        const keyMap = (state.mode === 'online' || i === 0) ? P1_KEYS : P2_KEYS;
+        const input = getLocalInput(keyMap);
+        if (state.mode === 'online') {
+            const seq = net.sendInput(input);
+            if (seq > 0) {
+                state.pendingInputs.push({ seq, input: { ...input } });
+                if (state.pendingInputs.length > MAX_PENDING_INPUTS) state.pendingInputs.shift();
+            }
+        }
+
+        if (car.isGhost) {
+            car.prevX = car.x;
+            car.prevY = car.y;
+            if (input.up) car.speed = Math.min(car.speed + car.accel, car.maxSpeed);
+            else if (input.down) car.speed = Math.max(car.speed - car.accel * 2, -car.maxSpeed / 2);
+            else car.speed *= (1 - car.friction);
+            if (Math.abs(car.speed) < 0.01) car.speed = 0;
+            if (input.left) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
+            if (input.right) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
+            car.vx = Math.cos(car.angle) * car.speed;
+            car.vy = Math.sin(car.angle) * car.speed;
+            car.x += car.vx;
+            car.y += car.vy;
+        } else {
+            car.update(input, trackData, state.skidmarks, state.particles);
+        }
+    });
+
+    if (state.mode !== 'online') state.botSlots.forEach((slot, i) => {
+        const car = state.cars.find(c => c.slot === slot);
+        const ai = state.botAIs[i];
+        if (!car || !ai || car.finished) return;
+        const input = ai.computeInput(car, state.cachedSegments);
+        car.update(input, trackData, state.skidmarks, state.particles);
+    });
+
+    if (state.mode !== 'online') handleAllCollisions(state.cars, state.particles);
+
+    if (state.mode !== 'online') for (const car of state.cars) {
+        if (car.finished && !state.finishOrder.find(f => f.slot === car.slot)) {
+            car.isGhost = true;
+            const name = getCarName(car);
+            const raceTime = performance.now() - state.raceStartTime;
+
+            state.finishOrder.push({
+                slot: car.slot,
+                name,
+                time: raceTime,
+                color: car.color,
+            });
+
+            if (state.finishOrder.length === 1) {
+                state.raceEndTime = performance.now() + RACE_END_TIMEOUT;
+            }
+        }
+    }
+
+    if (state.mode !== 'online' && state.finishOrder.length > 0) {
+        const allFinished = state.cars.every(c => c.finished);
+        const timeout = performance.now() > state.raceEndTime;
+
+        if (allFinished || timeout) {
+            for (const car of state.cars) {
+                if (!state.finishOrder.find(f => f.slot === car.slot)) {
+                    state.finishOrder.push({
+                        slot: car.slot,
+                        name: getCarName(car),
+                        time: null,
+                        color: car.color,
+                    });
+                }
+            }
+            state.raceFullyEnded = true;
+        }
+    }
+
+    computeRanking();
+    state.cars.forEach((car, i) => updateHUD(i, car, state.totalLaps));
+}
+
+function gameLoop(timestamp = performance.now()) {
     if (!state.running) {
         state.animFrameId = null;
         return;
     }
 
+    const previousFrameTime = state.lastFrameTime || timestamp;
+    const frameDelta = Math.max(0, Math.min(timestamp - previousFrameTime, 250));
+    state.lastFrameTime = timestamp;
+
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    const trackData = {
-        trackIdx: state.trackIdx,
-        cachedSegments: state.cachedSegments,
-        totalLaps: state.totalLaps,
-    };
-
-    // ---- Update ----
     if (state.gameStarted && !state.raceFullyEnded) {
-        // Update local cars
-        state.localSlots.forEach((slot, i) => {
-            const car = state.cars.find(c => c.slot === slot);
-            if (!car) return;
-
-            // Ghost cars can still be controlled but don't count for anything
-            if (car.finished && !car.isGhost) {
-                car.isGhost = true;
-            }
-
-            const keyMap = (state.mode === 'online' || i === 0) ? P1_KEYS : P2_KEYS;
-            const input = getLocalInput(keyMap);
-            if (state.mode === 'online') state.lastLocalInput = input;
-
-            if (car.isGhost) {
-                // Ghost: update position from input but no lap counting
-                car.prevX = car.x;
-                car.prevY = car.y;
-                // Simple ghost movement (reduced physics)
-                if (input.up) car.speed = Math.min(car.speed + car.accel, car.maxSpeed);
-                else if (input.down) car.speed = Math.max(car.speed - car.accel * 2, -car.maxSpeed / 2);
-                else car.speed *= (1 - car.friction);
-                if (Math.abs(car.speed) < 0.01) car.speed = 0;
-                if (input.left) car.angle -= car.turnSpeed * (car.speed > 0 ? 1 : -1);
-                if (input.right) car.angle += car.turnSpeed * (car.speed > 0 ? 1 : -1);
-                car.vx = Math.cos(car.angle) * car.speed;
-                car.vy = Math.sin(car.angle) * car.speed;
-                car.x += car.vx;
-                car.y += car.vy;
-            } else {
-                car.update(input, trackData, state.skidmarks, state.particles);
-            }
-        });
-
-        // Update bot cars (only non-finished)
-        if (state.mode !== 'online') state.botSlots.forEach((slot, i) => {
-            const car = state.cars.find(c => c.slot === slot);
-            const ai = state.botAIs[i];
-            if (!car || !ai || car.finished) return;
-            const input = ai.computeInput(car, state.cachedSegments);
-            car.update(input, trackData, state.skidmarks, state.particles);
-        });
-
-        // Interpolate remote cars
-        state.cars.forEach(car => {
-            if (car.isRemote && !car.finished) car.interpolateRemote();
-        });
-
-        // Collisions (skips ghost cars via physics.js)
-        if (state.mode !== 'online') handleAllCollisions(state.cars, state.particles);
-
-        // ---- Track finish order ----
-        if (state.mode !== 'online') for (const car of state.cars) {
-            if (car.finished && !state.finishOrder.find(f => f.slot === car.slot)) {
-                car.isGhost = true;
-                const name = getCarName(car);
-                const raceTime = performance.now() - state.raceStartTime;
-
-                state.finishOrder.push({
-                    slot: car.slot,
-                    name: name,
-                    time: raceTime,
-                    color: car.color
-                });
-
-                if (state.finishOrder.length === 1) {
-                    state.raceEndTime = performance.now() + RACE_END_TIMEOUT;
-                }
-
-            }
-        }
-
-        // ---- Check if race fully ended ----
-        if (state.mode !== 'online' && state.finishOrder.length > 0) {
-            const allFinished = state.cars.every(c => c.finished);
-            const timeout = performance.now() > state.raceEndTime;
-
-            if (allFinished || timeout) {
-                for (const car of state.cars) {
-                    if (!state.finishOrder.find(f => f.slot === car.slot)) {
-                        state.finishOrder.push({
-                            slot: car.slot,
-                            name: getCarName(car),
-                            time: null,
-                            color: car.color
-                        });
-                    }
-                }
-                state.raceFullyEnded = true;
-            }
-        }
-
-        computeRanking();
-        state.cars.forEach((car, i) => updateHUD(i, car, state.totalLaps));
-
-        // Network: send state (throttled to ~30Hz / every 33ms)
-        if (state.mode === 'online' && state.gameStarted) {
-            const now = performance.now();
-            if (now - state.lastNetSendTime >= 33) {
-                state.lastNetSendTime = now;
-                net.sendInput(state.lastLocalInput);
-            }
-        }
+        state.simulationClock.advance(frameDelta, updateSimulationTick);
+    } else {
+        state.simulationClock.reset();
     }
+
+    const deltaSeconds = frameDelta / 1000;
+    const renderServerTime = net.renderServerTime();
+    state.cars.forEach(car => {
+        car.updateVisualSmoothing(deltaSeconds);
+        if (car.isRemote && !car.finished) car.interpolateRemote(renderServerTime);
+    });
 
     // ---- Render ----
     drawTrack();

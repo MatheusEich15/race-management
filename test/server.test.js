@@ -50,20 +50,34 @@ test('owns room membership and car simulation on the server', { timeout: 10000 }
             seq: 1,
             input: { up: true, down: false, left: false, right: false, nitro: false },
         });
+        host.emit('player_input', {
+            seq: 1,
+            input: { up: false, down: true, left: false, right: false, nitro: false },
+        });
+        host.emit('player_input', {
+            seq: 2,
+            input: { up: true, down: false, left: true, right: false, nitro: false },
+        });
 
         const movingSnapshot = await once(
             guest,
             'game_state',
-            snapshot => snapshot.cars.some(car => car.slot === created.slot && Math.abs(car.speed) > 0.05),
+            snapshot => snapshot.cars.some(
+                car => car.slot === created.slot && car.inputSeq === 2 && Math.abs(car.speed) > 0.05,
+            ),
         );
         const authoritativeCar = movingSnapshot.cars.find(car => car.slot === created.slot);
-        assert.equal(authoritativeCar.inputSeq, 1);
+        assert.equal(authoritativeCar.inputSeq, 2);
         assert.ok(Math.abs(authoritativeCar.vx) + Math.abs(authoritativeCar.vy) > 0);
 
         const room = gameServer.rooms.get(created.code);
         assert.equal(room.players.size, 2);
         assert.equal(room.participants.size, 2);
         assert.equal(room.state, 'racing');
+        const hostPlayer = [...room.players.values()].find(player => player.slot === created.slot);
+        assert.equal(hostPlayer.lastProcessedInputSeq, 2);
+        assert.equal(hostPlayer.input.left, true);
+        assert.equal(hostPlayer.input.down, false);
     } finally {
         host.disconnect();
         guest.disconnect();

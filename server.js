@@ -18,6 +18,7 @@ const TICK_MS = 1000 / TICK_RATE;
 const SNAPSHOT_EVERY_TICKS = TICK_RATE / SNAPSHOT_RATE;
 const COUNTDOWN_MS = 4000;
 const RESULTS_TIMEOUT_MS = 20000;
+const MAX_INPUT_QUEUE = 240;
 const EMPTY_INPUT = Object.freeze({ up: false, down: false, left: false, right: false, nitro: false });
 
 function sanitizeName(value, fallback) {
@@ -119,7 +120,10 @@ export function createGameServer(options = {}) {
         }
         room.state = 'lobby';
         room.startAt = 0;
-        for (const player of room.players.values()) player.input = EMPTY_INPUT;
+        for (const player of room.players.values()) {
+            player.input = EMPTY_INPUT;
+            player.inputQueue = [];
+        }
         emitRoom(room, 'race_complete', { results: room.finishOrder, players: playerList(room) });
     }
 
@@ -169,7 +173,9 @@ export function createGameServer(options = {}) {
             const start = track.startPositions[player.slot];
             car.reset(start.x, start.y, track.startAngle);
             player.input = EMPTY_INPUT;
-            player.lastInputSeq = 0;
+            player.inputQueue = [];
+            player.lastReceivedInputSeq = 0;
+            player.lastProcessedInputSeq = 0;
             room.participants.set(player.slot, { slot: player.slot, name: player.name, isBot: false, player, car });
         }
 
@@ -197,7 +203,7 @@ export function createGameServer(options = {}) {
             tick: room.tick,
             cars: [...room.participants.values()].map(participant => ({
                 ...participant.car.serialize(),
-                inputSeq: participant.player?.lastInputSeq || 0,
+                inputSeq: participant.player?.lastProcessedInputSeq || 0,
                 finishRank: room.finishOrder.findIndex(entry => entry.slot === participant.slot) + 1,
             })),
         };
@@ -237,9 +243,17 @@ export function createGameServer(options = {}) {
         };
         for (const participant of room.participants.values()) {
             if (participant.car.finished) continue;
-            const input = participant.isBot
-                ? room.botAIs.get(participant.slot).computeInput(participant.car, room.cachedSegments)
-                : participant.player.input;
+            let input;
+            if (participant.isBot) {
+                input = room.botAIs.get(participant.slot).computeInput(participant.car, room.cachedSegments);
+            } else {
+                const command = participant.player.inputQueue.shift();
+                if (command) {
+                    participant.player.input = command.input;
+                    participant.player.lastProcessedInputSeq = command.seq;
+                }
+                input = participant.player.input;
+            }
             participant.car.update(input, trackData, [], []);
         }
         handleAllCollisions([...room.participants.values()].map(participant => participant.car));
@@ -284,7 +298,9 @@ export function createGameServer(options = {}) {
                 slot: 0,
                 isHost: true,
                 input: EMPTY_INPUT,
-                lastInputSeq: 0,
+                inputQueue: [],
+                lastReceivedInputSeq: 0,
+                lastProcessedInputSeq: 0,
             };
             const room = {
                 code,
@@ -322,7 +338,9 @@ export function createGameServer(options = {}) {
                 slot,
                 isHost: false,
                 input: EMPTY_INPUT,
-                lastInputSeq: 0,
+                inputQueue: [],
+                lastReceivedInputSeq: 0,
+                lastProcessedInputSeq: 0,
             };
             room.players.set(playerId, player);
             socket.join(code);
@@ -373,10 +391,11 @@ export function createGameServer(options = {}) {
             if (!room || !['countdown', 'racing'].includes(room.state)) return;
             const player = room.players.get(playerId);
             if (!player) return;
-            const seq = clampInteger(message.seq, player.lastInputSeq, Number.MAX_SAFE_INTEGER, player.lastInputSeq);
-            if (seq < player.lastInputSeq) return;
-            player.lastInputSeq = seq;
-            player.input = sanitizeInput(message.input);
+            const seq = Number(message.seq);
+            if (!Number.isSafeInteger(seq) || seq <= player.lastReceivedInputSeq) return;
+            player.lastReceivedInputSeq = seq;
+            player.inputQueue.push({ seq, input: sanitizeInput(message.input) });
+            if (player.inputQueue.length > MAX_INPUT_QUEUE) player.inputQueue.shift();
         });
 
         socket.on('time_sync', (clientSentAt, callback) => {

@@ -46,6 +46,12 @@ export class DriftCar {
         // Remote interpolation targets
         this.targetX = 0; this.targetY = 0;
         this.targetAngle = 0;
+
+        // Rendering is kept separate from authoritative/predicted physics.
+        this.visualOffsetX = 0;
+        this.visualOffsetY = 0;
+        this.visualAngleOffset = 0;
+        this.netSnapshots = [];
     }
 
     reset(x, y, angle) {
@@ -63,6 +69,10 @@ export class DriftCar {
         this.targetX = x;
         this.targetY = y;
         this.targetAngle = angle;
+        this.visualOffsetX = 0;
+        this.visualOffsetY = 0;
+        this.visualAngleOffset = 0;
+        this.netSnapshots = [];
     }
 
     /**
@@ -149,42 +159,90 @@ export class DriftCar {
 
         }
 
-        // Checkpoint detection (line crossing — same logic as finish line)
-        if (this.nextCheckpoint < track.checkpoints.length) {
-            const cp = track.checkpoints[this.nextCheckpoint];
-            if (checkFinishCrossing(this.prevX, this.prevY, this.x, this.y, cp)) {
-                this.nextCheckpoint++;
+        if (trackData.updateRaceProgress !== false) {
+            // Checkpoint detection (line crossing — same logic as finish line)
+            if (this.nextCheckpoint < track.checkpoints.length) {
+                const cp = track.checkpoints[this.nextCheckpoint];
+                if (checkFinishCrossing(this.prevX, this.prevY, this.x, this.y, cp)) {
+                    this.nextCheckpoint++;
+                }
             }
-        }
 
-        // Finish line detection (only if all checkpoints visited)
-        if (this.nextCheckpoint >= track.checkpoints.length) {
-            if (checkFinishCrossing(this.prevX, this.prevY, this.x, this.y, track.finishLine)) {
-                this.nextCheckpoint = 0;
-                this.currentLap++;
-                if (this.currentLap > trackData.totalLaps) {
-                    this.finished = true;
-                    this.finishTime = performance.now();
-                    this.currentLap = trackData.totalLaps;
+            // Finish line detection (only if all checkpoints visited)
+            if (this.nextCheckpoint >= track.checkpoints.length) {
+                if (checkFinishCrossing(this.prevX, this.prevY, this.x, this.y, track.finishLine)) {
+                    this.nextCheckpoint = 0;
+                    this.currentLap++;
+                    if (this.currentLap > trackData.totalLaps) {
+                        this.finished = true;
+                        this.finishTime = performance.now();
+                        this.currentLap = trackData.totalLaps;
+                    }
                 }
             }
         }
     }
 
-    interpolateRemote(lerpFactor = 0.25) {
-        // Move by current velocity first (Dead Reckoning)
-        this.x += this.vx;
-        this.y += this.vy;
+    pushNetSnapshot(state, serverTime) {
+        if (!Number.isFinite(serverTime)) return;
+        const snapshot = { ...state, serverTime };
+        const previous = this.netSnapshots.at(-1);
+        if (previous && serverTime <= previous.serverTime) return;
+        this.netSnapshots.push(snapshot);
+        if (this.netSnapshots.length > 30) this.netSnapshots.shift();
 
-        // Correct position toward network target
-        this.x += (this.targetX - this.x) * lerpFactor;
-        this.y += (this.targetY - this.y) * lerpFactor;
+        this.currentLap = state.currentLap;
+        this.nextCheckpoint = state.nextCheckpoint;
+        this.nitro = state.nitro;
+        this.finished = state.finished;
+        this.isBoosting = state.isBoosting;
+    }
 
-        // Angle interpolation (shortest path)
-        let angleDiff = this.targetAngle - this.angle;
+    interpolateRemote(renderServerTime) {
+        if (this.netSnapshots.length === 0 || !Number.isFinite(renderServerTime)) return;
+
+        while (
+            this.netSnapshots.length >= 3
+            && this.netSnapshots[1].serverTime <= renderServerTime
+        ) {
+            this.netSnapshots.shift();
+        }
+
+        const older = this.netSnapshots[0];
+        const newer = this.netSnapshots[1];
+        if (!newer) {
+            this.applyNetState(older);
+            return;
+        }
+
+        const duration = Math.max(1, newer.serverTime - older.serverTime);
+        const factor = Math.max(0, Math.min(1, (renderServerTime - older.serverTime) / duration));
+        this.x = older.x + (newer.x - older.x) * factor;
+        this.y = older.y + (newer.y - older.y) * factor;
+
+        let angleDiff = newer.angle - older.angle;
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        this.angle += angleDiff * lerpFactor;
+        this.angle = older.angle + angleDiff * factor;
+        this.speed = older.speed + (newer.speed - older.speed) * factor;
+        this.vx = older.vx + (newer.vx - older.vx) * factor;
+        this.vy = older.vy + (newer.vy - older.vy) * factor;
+        this.steerAngle = newer.steerAngle;
+        this.isBoosting = newer.isBoosting;
+        this.currentLap = newer.currentLap;
+        this.nextCheckpoint = newer.nextCheckpoint;
+        this.nitro = newer.nitro;
+        this.finished = newer.finished;
+    }
+
+    updateVisualSmoothing(deltaSeconds) {
+        const decay = Math.exp(-14 * Math.max(0, deltaSeconds));
+        this.visualOffsetX *= decay;
+        this.visualOffsetY *= decay;
+        this.visualAngleOffset *= decay;
+        if (Math.abs(this.visualOffsetX) < 0.01) this.visualOffsetX = 0;
+        if (Math.abs(this.visualOffsetY) < 0.01) this.visualOffsetY = 0;
+        if (Math.abs(this.visualAngleOffset) < 0.0001) this.visualAngleOffset = 0;
     }
 
     /**
@@ -195,8 +253,8 @@ export class DriftCar {
 
         ctx.save();
         if (ghost) ctx.globalAlpha = 0.3;
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle + Math.PI / 2);
+        ctx.translate(this.x + this.visualOffsetX, this.y + this.visualOffsetY);
+        ctx.rotate(this.angle + this.visualAngleOffset + Math.PI / 2);
 
         // Nitro flames
         if (this.isBoosting && Math.random() > 0.3) {
@@ -525,6 +583,9 @@ export class DriftCar {
      * Apply received network state to this car.
      */
     applyNetState(state) {
+        this.x = state.x;
+        this.y = state.y;
+        this.angle = state.angle;
         this.targetX = state.x;
         this.targetY = state.y;
         this.targetAngle = state.angle;
@@ -539,33 +600,44 @@ export class DriftCar {
         this.finished = state.finished;
     }
 
-    reconcileNetState(state, extrapolationTicks = 0) {
-        const authoritativeX = state.x + state.vx * extrapolationTicks;
-        const authoritativeY = state.y + state.vy * extrapolationTicks;
-        const dx = authoritativeX - this.x;
-        const dy = authoritativeY - this.y;
-        const error = Math.hypot(dx, dy);
-        if (error > 90) {
-            this.x = authoritativeX;
-            this.y = authoritativeY;
-        } else {
-            const correction = error > 25 ? 0.25 : 0.1;
-            this.x += dx * correction;
-            this.y += dy * correction;
+    reconcilePredictedState(state, pendingInputs, trackData) {
+        const visibleX = this.x + this.visualOffsetX;
+        const visibleY = this.y + this.visualOffsetY;
+        const visibleAngle = this.angle + this.visualAngleOffset;
+
+        this.applyNetState(state);
+        this.prevX = this.x;
+        this.prevY = this.y;
+
+        const replayTrackData = {
+            ...trackData,
+            effects: false,
+            updateRaceProgress: false,
+        };
+        for (const command of pendingInputs) {
+            this.update(command.input, replayTrackData, [], []);
         }
-        let angleDiff = state.angle - this.angle;
-        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
-        this.angle += angleDiff * 0.15;
-        this.vx += (state.vx - this.vx) * 0.2;
-        this.vy += (state.vy - this.vy) * 0.2;
-        this.speed += (state.speed - this.speed) * 0.2;
-        this.steerAngle = state.steerAngle;
-        this.isBoosting = state.isBoosting;
+
+        // Race progress remains exclusively server-owned in online mode.
         this.currentLap = state.currentLap;
         this.nextCheckpoint = state.nextCheckpoint;
-        this.nitro = state.nitro;
         this.finished = state.finished;
+
+        let offsetX = visibleX - this.x;
+        let offsetY = visibleY - this.y;
+        const offsetLength = Math.hypot(offsetX, offsetY);
+        if (offsetLength > 100) {
+            const scale = 100 / offsetLength;
+            offsetX *= scale;
+            offsetY *= scale;
+        }
+        this.visualOffsetX = offsetX;
+        this.visualOffsetY = offsetY;
+
+        let angleOffset = visibleAngle - this.angle;
+        while (angleOffset > Math.PI) angleOffset -= Math.PI * 2;
+        while (angleOffset < -Math.PI) angleOffset += Math.PI * 2;
+        this.visualAngleOffset = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, angleOffset));
     }
 
     /**
