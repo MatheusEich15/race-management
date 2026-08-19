@@ -3,6 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        if (window.location.hostname.endsWith('.vercel.app')) {
+            const target = new URL(window.location.href);
+            target.protocol = 'https:';
+            target.host = 'race-management-i09o.onrender.com';
+            window.location.replace(target.toString());
+        }
+    </script>
     <title>Ultimate Drift Championship — Multiplayer Racing</title>
     <meta name="description" content="2D racing game with drift, online and local multiplayer. Up to 4 players in epic drift battles!">
     <link rel="stylesheet" href="/style.css">
