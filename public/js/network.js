@@ -13,6 +13,7 @@ export class NetworkManager {
         this.isHost = false;
         this.inputSeq = 0;
         this.serverClockOffset = 0;
+        this.rttMs = 0;
         this.clockSyncTimer = null;
 
         // Callbacks set by game.js
@@ -190,7 +191,7 @@ export class NetworkManager {
     sendInput(input) {
         if (!this.socket?.connected) return 0;
         this.inputSeq++;
-        this.socket.volatile.emit('player_input', { seq: this.inputSeq, input });
+        this.socket.emit('player_input', { seq: this.inputSeq, input });
         return this.inputSeq;
     }
 
@@ -200,18 +201,23 @@ export class NetworkManager {
         this.socket.emit('time_sync', clientSentAt, response => {
             if (!response || response.clientSentAt !== clientSentAt) return;
             const clientReceivedAt = Date.now();
+            const rtt = clientReceivedAt - clientSentAt;
             const midpoint = (clientSentAt + clientReceivedAt) / 2;
             const sample = response.serverTime - midpoint;
             this.serverClockOffset = this.serverClockOffset === 0
                 ? sample
                 : this.serverClockOffset * 0.8 + sample * 0.2;
+            this.rttMs = this.rttMs === 0 ? rtt : this.rttMs * 0.8 + rtt * 0.2;
         });
     }
 
-    snapshotAgeTicks(serverTime) {
-        if (!Number.isFinite(serverTime)) return 0;
-        const ageMs = Date.now() + this.serverClockOffset - serverTime;
-        return Math.max(0, Math.min(6, ageMs / (1000 / 60)));
+    serverNow() {
+        return Date.now() + this.serverClockOffset;
+    }
+
+    renderServerTime() {
+        const interpolationDelay = Math.max(80, Math.min(180, this.rttMs / 2 + 50));
+        return this.serverNow() - interpolationDelay;
     }
 
     disconnect() {
