@@ -3,10 +3,11 @@ services:
     name: ultimate-drift-server
     runtime: node
     plan: free
-    buildCommand: npm install
-    startCommand: node server.js
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
     envVars:
-      - key: PORT
-        value: 3000
-type: web
-runtime: node
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.14.0

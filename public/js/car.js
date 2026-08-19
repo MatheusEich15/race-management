@@ -60,6 +60,9 @@ export class DriftCar {
         this.finished = false;
         this.finishTime = 0;
         this.showHeadlights = false;
+        this.targetX = x;
+        this.targetY = y;
+        this.targetAngle = angle;
     }
 
     /**
@@ -128,7 +131,7 @@ export class DriftCar {
         const moveAngle = Math.atan2(this.vy, this.vx);
         const driftIntensity = Math.abs(Math.sin(this.angle - moveAngle)) * Math.sqrt(this.vx ** 2 + this.vy ** 2);
 
-        if (driftIntensity > 2.5 && this.speed > 2) {
+        if (trackData.effects !== false && driftIntensity > 2.5 && this.speed > 2) {
             skidmarks.push({ x: this.x, y: this.y });
             if (skidmarks.length > 2000) skidmarks.shift();
 
@@ -528,6 +531,35 @@ export class DriftCar {
         this.speed = state.speed;
         this.vx = state.vx;
         this.vy = state.vy;
+        this.steerAngle = state.steerAngle;
+        this.isBoosting = state.isBoosting;
+        this.currentLap = state.currentLap;
+        this.nextCheckpoint = state.nextCheckpoint;
+        this.nitro = state.nitro;
+        this.finished = state.finished;
+    }
+
+    reconcileNetState(state, extrapolationTicks = 0) {
+        const authoritativeX = state.x + state.vx * extrapolationTicks;
+        const authoritativeY = state.y + state.vy * extrapolationTicks;
+        const dx = authoritativeX - this.x;
+        const dy = authoritativeY - this.y;
+        const error = Math.hypot(dx, dy);
+        if (error > 90) {
+            this.x = authoritativeX;
+            this.y = authoritativeY;
+        } else {
+            const correction = error > 25 ? 0.25 : 0.1;
+            this.x += dx * correction;
+            this.y += dy * correction;
+        }
+        let angleDiff = state.angle - this.angle;
+        while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+        while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+        this.angle += angleDiff * 0.15;
+        this.vx += (state.vx - this.vx) * 0.2;
+        this.vy += (state.vy - this.vy) * 0.2;
+        this.speed += (state.speed - this.speed) * 0.2;
         this.steerAngle = state.steerAngle;
         this.isBoosting = state.isBoosting;
         this.currentLap = state.currentLap;

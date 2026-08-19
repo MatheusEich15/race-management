@@ -11,17 +11,22 @@ export class NetworkManager {
         this.roomCode = null;
         this.mySlot = -1;
         this.isHost = false;
+        this.inputSeq = 0;
+        this.serverClockOffset = 0;
+        this.clockSyncTimer = null;
 
         // Callbacks set by game.js
         this.onRoomCreated = null;   // (code, slot)
         this.onRoomJoined = null;    // (code, slot, players)
         this.onPlayerJoined = null;  // (name, slot)
         this.onPlayerLeft = null;    // (slot)
+        this.onHostTransferred = null; // (slot, players)
         this.onConfigUpdated = null; // (config)
         this.onGameStarting = null;  // (config)
         this.onGameState = null;     // (carStates)
         this.onRaceWinner = null;    // (slot, name)
         this.onRaceEnded = null;     // ()
+        this.onRaceComplete = null;  // (results, players)
         this.onRaceGo = null;        // ()
         this.onError = null;         // (message)
         this.onDisconnect = null;    // ()
@@ -47,13 +52,10 @@ export class NetworkManager {
             if (url.startsWith('wss://')) url = url.replace('wss://', 'https://');
 
             try {
-                // CRÍTICO: Vercel Serverless Functions NÃO sustentam WebSocket
-                // persistente. Forçar apenas polling e desabilitar upgrade
-                // evita que a conexão morra no meio do handshake.
                 this.socket = io(url, {
                     path: '/socket.io',
-                    transports: ['polling'],
-                    upgrade: false,
+                    transports: ['websocket', 'polling'],
+                    upgrade: true,
                     withCredentials: true,
                     reconnection: true,
                     reconnectionAttempts: Infinity,
@@ -68,6 +70,9 @@ export class NetworkManager {
             // Evento de Conexão Bem-Sucedida
             this.socket.on('connect', () => {
                 this.connected = true;
+                this.syncClock();
+                clearInterval(this.clockSyncTimer);
+                this.clockSyncTimer = setInterval(() => this.syncClock(), 5000);
                 resolve();
             });
 
@@ -83,6 +88,8 @@ export class NetworkManager {
             this.socket.on('disconnect', () => {
                 this.connected = false;
                 this.roomCode = null;
+                clearInterval(this.clockSyncTimer);
+                this.clockSyncTimer = null;
                 if (this.onDisconnect) this.onDisconnect();
             });
 
@@ -94,7 +101,7 @@ export class NetworkManager {
                 this.roomCode = msg.code;
                 this.mySlot = msg.slot;
                 this.isHost = true;
-                if (this.onRoomCreated) this.onRoomCreated(msg.code, msg.slot);
+                if (this.onRoomCreated) this.onRoomCreated(msg.code, msg.slot, msg.players);
             });
 
             this.socket.on('room_joined', (msg) => {
@@ -116,6 +123,7 @@ export class NetworkManager {
                 if (msg.slot === this.mySlot) {
                     this.isHost = true;
                 }
+                if (this.onHostTransferred) this.onHostTransferred(msg.slot, msg.players || []);
             });
 
             this.socket.on('config_updated', (msg) => {
@@ -127,15 +135,19 @@ export class NetworkManager {
             });
 
             this.socket.on('game_state', (msg) => {
-                if (this.onGameState) this.onGameState(msg.cars);
+                if (this.onGameState) this.onGameState(msg.cars, msg);
             });
 
             this.socket.on('race_winner', (msg) => {
-                if (this.onRaceWinner) this.onRaceWinner(msg.slot, msg.name);
+                if (this.onRaceWinner) this.onRaceWinner(msg);
             });
 
             this.socket.on('race_ended', () => {
                 if (this.onRaceEnded) this.onRaceEnded();
+            });
+
+            this.socket.on('race_complete', (msg) => {
+                if (this.onRaceComplete) this.onRaceComplete(msg.results || [], msg.players || []);
             });
 
             this.socket.on('race_go', () => {
@@ -175,12 +187,31 @@ export class NetworkManager {
         if (this.socket) this.socket.emit('start_game');
     }
 
-    sendCarState(carState, botStates = []) {
-        if (this.socket) this.socket.emit('car_update', { car: carState, bots: botStates });
+    sendInput(input) {
+        if (!this.socket?.connected) return 0;
+        this.inputSeq++;
+        this.socket.volatile.emit('player_input', { seq: this.inputSeq, input });
+        return this.inputSeq;
     }
 
-    sendFinished(slot) {
-        if (this.socket) this.socket.emit('race_finished', { slot });
+    syncClock() {
+        if (!this.socket?.connected) return;
+        const clientSentAt = Date.now();
+        this.socket.emit('time_sync', clientSentAt, response => {
+            if (!response || response.clientSentAt !== clientSentAt) return;
+            const clientReceivedAt = Date.now();
+            const midpoint = (clientSentAt + clientReceivedAt) / 2;
+            const sample = response.serverTime - midpoint;
+            this.serverClockOffset = this.serverClockOffset === 0
+                ? sample
+                : this.serverClockOffset * 0.8 + sample * 0.2;
+        });
+    }
+
+    snapshotAgeTicks(serverTime) {
+        if (!Number.isFinite(serverTime)) return 0;
+        const ageMs = Date.now() + this.serverClockOffset - serverTime;
+        return Math.max(0, Math.min(6, ageMs / (1000 / 60)));
     }
 
     disconnect() {
@@ -190,5 +221,7 @@ export class NetworkManager {
         }
         this.connected = false;
         this.roomCode = null;
+        clearInterval(this.clockSyncTimer);
+        this.clockSyncTimer = null;
     }
 }
